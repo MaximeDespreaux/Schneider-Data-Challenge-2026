@@ -1,0 +1,25 @@
+[project]
+name = "schneider-data-challenge-2026"
+version = "0.1.0"
+description = "Schneider Electric Data Challenge 2026"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "scikit-learn",
+    "matplotlib",
+    "seaborn",
+    "xgboost",
+    "lightgbm",
+]
+
+[dependency-groups]
+dev = [
+    "jupyterlab",
+    "ipykernel",
+]
+
+[tool.uv]
+package = false
