@@ -38,11 +38,16 @@ Place the challenge files in `data/`. Its contents are gitignored — only the f
 
 Add a package with `uv add <pkg>` (or `uv add --dev <pkg>` for dev tools).
 
+## Git hooks
+
+`make install` (or `make hooks`) enables the hooks in `.githooks/`. The `pre-commit` hook blocks commits on `main` that modify config files (`pyproject.toml`, `uv.lock`, `Makefile`, `.gitignore`, `.python-version`, `.githooks/*`) — make those changes on a branch instead.
+
 ## Make targets
 
 | Target       | Description                                   |
 |--------------|-----------------------------------------------|
-| `install`    | Create `.venv` and install all dependencies   |
+| `install`    | Create `.venv`, install deps, enable hooks    |
+| `hooks`      | Enable the repo's git hooks (`.githooks/`)    |
 | `lock`       | Update `uv.lock`                              |
 | `lab`        | Launch JupyterLab                             |
 | `clean`      | Remove caches and notebook checkpoints        |

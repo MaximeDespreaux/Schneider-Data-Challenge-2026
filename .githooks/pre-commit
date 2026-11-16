@@ -1,0 +1,21 @@
+#!/bin/sh
+# Block commits on main that modify project config files.
+# Bypass (use sparingly): git commit --no-verify
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+[ "$branch" = "main" ] || exit 0
+
+protected='^(pyproject\.toml|uv\.lock|Makefile|\.gitignore|\.python-version|\.githooks/.*)$'
+
+changed=$(git diff --cached --name-only | grep -E "$protected")
+
+if [ -n "$changed" ]; then
+    echo "pre-commit: config files cannot be committed directly on 'main':" >&2
+    echo "$changed" | sed 's/^/  - /' >&2
+    echo "" >&2
+    echo "Create a branch instead:  git switch -c <branch-name>" >&2
+    echo "Or bypass (not recommended): git commit --no-verify" >&2
+    exit 1
+fi
+
+exit 0
