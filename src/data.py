@@ -24,13 +24,7 @@ PRODUCTS = {
 # Séries à prévoir (proxys gratuits). Les séries L sont vides par construction.
 RM_TARGETS = ["S01", "S02", "S03", "S04", "S05", "S07", "S08", "S09", "S10", "S11", "S12", "S13", "D01", "D02"]
 
-# Délais de publication (mois) — ce qui est connu à la date d'origine.
-PUBLICATION_LAG = {
-    **{s: 1 for s in ["S01", "S02", "S03", "S04", "S05", "D01", "D02"]},  # IMF via FRED
-    "S06": 0,
-    **{s: 2 for s in ["S07", "S08", "S09", "S10", "S11"]},  # Eurostat
-    **{s: 1 for s in ["S12", "S13"]},  # BLS
-}
+# Publication lags live in config/availability.yaml (single source of truth).
 
 # Prix d'ancrage (EUR/kg, moyenne 2021) pour les matières suivies par un INDICE (base 2021=100).
 # HYPOTHÈSES à remplacer par les niveaux CRU/MEPS du workbook acier dès que possible.
@@ -70,7 +64,7 @@ def load_catalogs() -> tuple[pd.DataFrame, pd.DataFrame]:
     return rm, en
 
 
-def load_bom(version: str = "root", rm6_carbon_share: float = 0.45) -> pd.DataFrame:
+def load_bom(version: str = "root", rm6_carbon_share: float = 0.45, allow_deprecated: bool = False) -> pd.DataFrame:
     """BOM nettoyée, une ligne par (produit, matière).
 
     version="root" -> RM_Prices_XHEC_Challenge.xlsx à la racine de Data/ : **BOM officielle** (décision d'équipe
@@ -78,6 +72,9 @@ def load_bom(version: str = "root", rm6_carbon_share: float = 0.45) -> pd.DataFr
     version="csv"  -> panel/bom_materials.csv (data.zip) : **obsolète**, gardée seulement pour les tests de sensibilité
     La grosse part non étiquetée du RM6 est supposée en acier carbone : masse = rm6_carbon_share × masse totale implicite.
     """
+    if version == "csv" and not allow_deprecated:
+        raise ValueError("BOM csv is deprecated (see data/Data/BOM_SOURCE_OF_TRUTH.md); "
+                         "pass allow_deprecated=True for sensitivity only")
     if version == "csv":
         bom = pd.read_csv(PANEL / "bom_materials.csv")
     elif version == "root":
@@ -139,12 +136,36 @@ def load_rmu_price_benchmark() -> pd.DataFrame:
     return df
 
 
-def load_epoxy() -> pd.DataFrame:
+EPOXY_COLUMNS = ["EPX_BENZENE", "EPX_ACETONE", "EPX_ECH", "EPX_OTHER", "EPX_RESIN"]  # file order
+# Data corrections applied on load (documented, reversible with correct=False).
+EPOXY_CORRECTIONS = [{"month": "2026-05", "column": "EPX_ECH", "factor": 10,
+                      "reason": "decimal typo, resin left as delivered and flagged"}]
+
+
+def correct_epoxy(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply EPOXY_CORRECTIONS to a copy of ``df``; the list of applied corrections goes in ``attrs``."""
+    out = df.copy()
+    applied = []
+    for c in EPOXY_CORRECTIONS:
+        m = pd.Timestamp(c["month"] + "-01")
+        if c["column"] in out and m in out.index:
+            out.at[m, c["column"]] = out.at[m, c["column"]] * c["factor"]
+            applied.append(dict(c))
+    out.attrs["corrections"] = applied
+    return out
+
+
+def load_epoxy(correct: bool = True) -> pd.DataFrame:
+    """Epoxy cost build-up (EUR/t), month-start index, columns EPX_*. Input only, not a CSV target."""
     df = pd.read_excel(RAW / "Epoxy for student.xlsx", sheet_name="Feuil1")
     df = df.rename(columns={df.columns[0]: "date"})
     df = df.drop(columns=[c for c in df.columns if str(c).startswith("Unnamed")])
     df["month"] = pd.to_datetime(df["date"]).dt.to_period("M").dt.to_timestamp()
-    return df.set_index("month").drop(columns="date")
+    df = df.set_index("month").drop(columns="date")
+    if len(df.columns) != len(EPOXY_COLUMNS):
+        raise ValueError(f"epoxy file: expected {len(EPOXY_COLUMNS)} columns, got {list(df.columns)}")
+    df.columns = EPOXY_COLUMNS
+    return correct_epoxy(df) if correct else df
 
 
 def dlog(df: pd.DataFrame | pd.Series, k: int = 1):
