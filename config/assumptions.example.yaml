@@ -224,3 +224,12 @@ open_questions:
   - "Typical margin, or material share of selling price, for RM6 and AirSeT?"
   - "Roughly what EUR of electronics/sensors are in a base RM6 and a base RM AirSeT?"
   - "How does sales segment customers (tiers / deal sizes) when deciding discounts?"
+
+# ---------------------------------------------------------------------
+# 9. Backtest (src/testbench) - added 2026-11-19, no licensed values
+# ---------------------------------------------------------------------
+backtest:
+  use_licensed: false            # true only on machines with the licensed CRU/MEPS workbook in data/raw/
+  live_origin: "2026-09"
+  team_id: "team_TBD"
+  availability_file: config/availability.yaml

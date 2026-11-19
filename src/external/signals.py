@@ -67,8 +67,10 @@ def load_lme() -> pd.DataFrame:
 def load_external() -> pd.DataFrame:
     f = _fred()
     x = f[[c for c in EXTERNAL if c in f]].rename(columns=EXTERNAL)
-    g = pd.read_csv(EXT / "gscpi.csv", index_col=0, parse_dates=True)["GSCPI"].rename("X_GSCPI")
-    x = x.join(g, how="outer")
+    # GSCPI optionnel : le fetcher enregistre un .xls (format OLE2) que rien ne convertit en gscpi.csv
+    if (EXT / "gscpi.csv").exists():
+        g = pd.read_csv(EXT / "gscpi.csv", index_col=0, parse_dates=True)["GSCPI"].rename("X_GSCPI")
+        x = x.join(g, how="outer")
     try:
         x = x.join(load_lme(), how="outer")
     except FileNotFoundError:
@@ -103,10 +105,6 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
 
 
 def build_panel(long: bool = True, external: bool = True) -> pd.DataFrame:
-    from src.testbench.run import build_panel as base_panel
-    p = base_panel()
-    if long:
-        p = extend_history(p)
-    if external:
-        p = p.join(load_external(), how="left")
-    return p
+    """Panel public (sans données sous licence). Délègue au constructeur unique du banc de test."""
+    from src.testbench.panel import build_full_panel
+    return build_full_panel(use_licensed=False, long=long, external=external)

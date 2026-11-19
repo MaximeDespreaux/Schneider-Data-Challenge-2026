@@ -63,7 +63,6 @@ def test_realtime_unknown_column_raises():
 
 
 @needs_data
-@pytest.mark.xfail(strict=True, reason="Task 4 adds panel.build_full_panel")
 def test_real_panel_fully_covered():
     from src.testbench.panel import build_full_panel
     check_coverage(build_full_panel(use_licensed=True).columns)

@@ -27,7 +27,6 @@ class Spy:
         return pd.DataFrame({"p10": last, "p50": last, "p90": last}, index=pd.Index(steps, name="step"))
 
 
-@pytest.mark.xfail(strict=True, reason="Task 4 adds run_backtest(lags=)")
 @pytest.mark.parametrize("mode", ["submission", "realtime"])
 def test_perturbing_the_future_changes_nothing(panel, mode):
     """Test de perturbation : on remplace tout le futur (toutes séries) par du bruit -> prévisions identiques."""
