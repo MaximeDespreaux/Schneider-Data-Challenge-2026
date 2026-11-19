@@ -1,0 +1,104 @@
+# Banc de test des prévisions (partie 2)
+
+> Ce document ne contient aucune donnée : il décrit le code. Les résultats chiffrés sont dans `data/outputs/` (gitignoré).
+
+## Ce que fait le banc
+On rejoue l'histoire mois par mois. À chaque **origine** (janv. 2020 → aujourd'hui), chaque modèle ne reçoit que ce
+qui était connu à cette date, prévoit les mois **origine + 3, + 6 et + 9** (P10 / P50 / P90), puis on compare
+avec la réalité. Tous les scores sont comparés à la référence **`naive`** : « le prix reste celui d'aujourd'hui ».
+
+```
+uv run python -m src.testbench.run                    # mode submission, origines 2020-01 → fin
+uv run python -m src.testbench.run --mode realtime     # + délais de publication réels (Eurostat ≈ 2 mois)
+uv run python -m src.testbench.run --start 2017-11     # échantillon complet
+uv run pytest -q tests                                 # tests (données synthétiques, tournent en CI)
+```
+Sorties dans `data/outputs/testbench/<mode>/` : `forecasts.parquet`, `scores.csv`, `overview.csv`, `regimes.csv`,
+`holdout_selection.csv` (choix du modèle sur 2020-23, vérifié sur 2024-26), `compute_footprint.csv` (temps, kWh, gCO2e).
+
+## Choisir le modèle final sans tricher
+`metrics.holdout_selection(scored, split="2024-01-01")` : pour chaque série × horizon, choisit le meilleur modèle en ne
+regardant que les prévisions dont la cible est **avant** 2024, puis le note sur les origines **à partir de** 2024.
+C'est ce score-là (pas celui du backtest complet) qu'il faut montrer au jury pour le modèle retenu.
+
+## Calcul et CO2
+`compute_footprint(fc.attrs["runtime_s"])` : temps CPU par modèle → kWh (portable ~30 W) → gCO2e (~0,25 kg/kWh, mix UE).
+Hypothèses volontairement simples, à citer comme ordre de grandeur.
+
+## Les deux modes
+| Mode | À l'origine t, le modèle connaît… | Usage |
+|---|---|---|
+| `submission` | toutes les séries jusqu'à t inclus | même définition que le CSV (`origin_month` = dernier mois utilisé) |
+| `realtime` | chaque série jusqu'à t − délai de publication | test de robustesse « vraie vie » (un acheteur en novembre n'a l'indice Eurostat que jusqu'en septembre) |
+
+Les délais sont dans `src/testbench/vintage.py` (`REALTIME_LAG_MONTHS`). La partie 1 pourra les remplacer par sa
+table « quand chaque chiffre a été publié ».
+
+## Brancher un modèle (partie 3)
+Un modèle est un objet avec un attribut `name` et une méthode :
+
+```python
+def forecast(self, y: pd.Series, steps: list[int], exog: pd.DataFrame | None = None) -> pd.DataFrame:
+    # y     : historique de la série cible, mensuel, sans NaN, se termine à la dernière observation connue
+    # steps : nb de mois après la dernière observation (≥ horizon si la série a du retard de publication)
+    # exog  : tout le panel connu à l'origine (matières + énergie + indices BOM), déjà tronqué → pas de fuite possible
+    # retour: DataFrame index = steps, colonnes p10, p50, p90 (en niveau), p10 ≤ p50 ≤ p90
+```
+
+Si le modèle ne donne qu'une valeur centrale, écrire `point(y, h) -> float` et l'envelopper :
+`Conformal(MonModele())` → P10/P90 calculés à partir de ses propres erreurs passées (rapide uniquement :
+le modèle est rejoué ~48 fois par appel). Pour un modèle lent (ex. Chronos-2), renvoyer directement ses quantiles.
+
+Ensuite :
+```python
+from src.testbench.run import build_panel, DEFAULT_TARGETS
+from src.testbench.backtest import run_backtest, default_origins
+from src.testbench.models import Naive, NaiveVolScaled
+from src.testbench import metrics
+
+panel = build_panel()
+fc = run_backtest(panel, DEFAULT_TARGETS, [Naive(), NaiveVolScaled(), MonModele()],
+                  origins=default_origins(panel, "2020-01"))
+table = metrics.summarize(metrics.score_rows(fc))
+metrics.overview(table)
+```
+**Toujours inclure `Naive()`** : c'est la référence des colonnes `rel_*` et du test de Diebold-Mariano.
+
+## Les scores (tous en log, ≈ %)
+| Score | Définition | Bon si |
+|---|---|---|
+| `MAE_pct` | erreur absolue moyenne du P50 | bas |
+| `rel_MAE` | MAE modèle / MAE naïf, sur les mêmes prévisions | < 1 |
+| `DM_p` | p-value Diebold-Mariano vs naïf (variance HAC h−1 retards, correction HLN) | < 0,05 pour dire « significatif » |
+| `QL`, `rel_QL` | perte quantile (pinball) moyenne P10/P50/P90, et relative au naïf | bas / < 1 |
+| `coverage` | part des réalités entre P10 et P90 | ≈ 0,80 |
+| `below` / `above` | part sous P10 / au-dessus de P90 | ≈ 0,10 chacun |
+| `width_pct` | largeur moyenne P10–P90 | le plus étroit possible **à couverture égale** |
+| `regime` | « choc 2021-22 » si l'origine ou la cible tombe en 2021-22, sinon « calme » | — |
+
+## Baselines fournies
+| Nom | Idée |
+|---|---|
+| `naive` | prix d'aujourd'hui ; bandes = quantiles des variations passées à h mois |
+| `naive_gauss` | idem, bandes gaussiennes (contre-exemple : sous-estime les queues) |
+| `naive_vol` | naïf + bandes remises à l'échelle de la volatilité récente (EWMA, demi-vie 3 mois) |
+| `drift_conf` | naïf + tendance des 60 derniers mois, bandes conformal |
+| `ar1_conf` | momentum : AR(1) sur les variations mensuelles, bandes conformal |
+| `ma12_conf` | retour vers la moyenne 12 mois, bandes conformal |
+
+## Cibles
+Les 14 séries matières du panel (`src/data.py::RM_TARGETS`) + 2 indices de coût BOM (`src/testbench/targets.py`) :
+indice à quantités fixes, pondéré en valeur, base 2026-09 = 100, paramètres lus dans `config/assumptions.yaml`.
+
+## Format du CSV
+`src/testbench/submission.py` : `from_forecasts(...)` convertit une sortie du banc au format Schneider,
+`validate_submission(df)` liste les problèmes (colonnes, enums, `target_month = origin + h`, `p10 ≤ p50 ≤ p90`, doublons).
+
+## Limites connues
+- La « réalité » est la valeur révisée d'aujourd'hui, pas la première publication (Eurostat/BLS révisent 2–3 mois).
+- ~80 origines qui se chevauchent : la significativité statistique est difficile à obtenir, surtout à 9 mois.
+- La demi-vie de `naive_vol` a été choisie parmi {3, 6, 12} sur ce même backtest (léger biais de sélection).
+- Testé et rejeté : `naive_vol` sans recentrage (garder l'asymétrie historique) ne corrige pas le P90 trop optimiste.
+
+## Intégration continue
+`.github/workflows/tests.yml` lance `uv run pytest` à chaque push. Les tests n'utilisent que des données synthétiques.
