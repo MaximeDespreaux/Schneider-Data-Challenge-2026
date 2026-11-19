@@ -106,8 +106,10 @@ class NaiveVolScaled:
         for h in steps:
             ly = np.log(y)
             dh = (ly.shift(-h) - ly).dropna()
-            v = vol.reindex(dh.index).dropna()
+            # plancher : des périodes à prix administré (ex. minerai de fer avant 2010) ont une vol ≈ 0
+            v = vol.reindex(dh.index).dropna().clip(lower=self.floor * long_vol)
             z = (dh.reindex(v.index) / (v * np.sqrt(h))).to_numpy()
+            z = z[np.isfinite(z)]
             if len(z) < 12:
                 z = np.array([-Z90, 0.0, Z90])
             med = np.median(z) if self.recenter else 0.0
