@@ -1,11 +1,32 @@
 #!/bin/sh
-# Block commits on main that modify project config files.
+# 1. Block notebooks that still contain outputs (they may hold confidential data).
+#    Normally nbstripout strips them automatically; this catches clones where `make hooks` was not run.
+# 2. Block commits on main that modify project config files.
 # Bypass (use sparingly): git commit --no-verify
 
+# --- 1. Notebook outputs (all branches) -------------------------------------
+dirty=""
+for nb in $(git diff --cached --name-only --diff-filter=ACM -- '*.ipynb'); do
+    # Inspect the staged version (after the nbstripout filter has run, if installed).
+    if git show ":$nb" | grep -q -E '"outputs": \[ *$|"execution_count": [0-9]'; then
+        dirty="$dirty $nb"
+    fi
+done
+
+if [ -n "$dirty" ]; then
+    echo "pre-commit: these notebooks contain outputs (possible confidential data):" >&2
+    for nb in $dirty; do echo "  - $nb" >&2; done
+    echo "" >&2
+    echo "Set up the automatic stripping filter once per clone:  make hooks" >&2
+    echo "Then re-stage the notebooks:                           git add <notebook>" >&2
+    exit 1
+fi
+
+# --- 2. Config files on main ------------------------------------------------
 branch=$(git symbolic-ref --short HEAD 2>/dev/null)
 [ "$branch" = "main" ] || exit 0
 
-protected='^(pyproject\.toml|uv\.lock|Makefile|\.gitignore|\.python-version|\.githooks/.*)$'
+protected='^(pyproject\.toml|uv\.lock|Makefile|\.gitignore|\.gitattributes|\.python-version|\.githooks/.*)$'
 
 changed=$(git diff --cached --name-only | grep -E "$protected")
 

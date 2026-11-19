@@ -8,9 +8,10 @@ install: ## Create .venv and install all dependencies (incl. dev)
 	uv sync
 	@$(MAKE) --no-print-directory hooks
 
-hooks: ## Enable the repo's git hooks (.githooks/)
+hooks: ## Enable the repo's git hooks (.githooks/) and the notebook output-stripping filter
 	git config core.hooksPath .githooks
 	chmod +x .githooks/*
+	uv run nbstripout --install
 
 lock: ## Update uv.lock
 	uv lock

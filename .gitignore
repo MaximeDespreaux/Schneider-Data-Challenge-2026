@@ -21,3 +21,22 @@ __pycache__/
 # Data (not tracked; keep folder)
 data/*
 !data/.gitkeep
+
+# Confidential data must never be committed, wherever it lands in the repo.
+# Notebook *outputs* are stripped at commit time by nbstripout (see .gitattributes).
+*.zip
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.parquet
+*.pkl
+*.pdf
+
+# Notebook exports and generated outputs (figures, tables, reports)
+outputs/
+figures/
+reports/
+notebooks/**/*.html
+notebooks/**/*.png
+notebooks/**/*.svg

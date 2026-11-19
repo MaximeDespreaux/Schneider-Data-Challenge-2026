@@ -1,0 +1,4 @@
+# Strip notebook outputs at commit time (outputs may contain confidential data).
+# The filter itself is registered per clone by `make hooks` (nbstripout --install).
+*.ipynb filter=nbstripout
+*.ipynb diff=ipynb
