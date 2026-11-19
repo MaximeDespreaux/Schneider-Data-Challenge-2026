@@ -39,12 +39,6 @@ EXTERNAL = {  # colonne FRED -> nom du signal
     "PALLFNFINDEXM": "X_IMF_ALLCOMMOD",
 }
 
-# délais de publication des signaux (mois) pour le mode realtime du banc
-EXTERNAL_LAGS = {**{v: 1 for v in EXTERNAL.values()}, "X_VIX": 0, "X_OVX": 0, "X_USD_BROAD": 0, "X_US_BREAKEVEN": 0,
-                 "X_US_10Y": 0, "X_GSCPI": 1, "X_GLOBAL_EPU": 2, "X_CU_TERM": 0, "X_AL_TERM": 0,
-                 "X_CU_STOCKS": 0, "X_AL_STOCKS": 0}
-
-
 def _fred() -> pd.DataFrame:
     return pd.read_csv(EXT / "fred_monthly.csv", index_col=0, parse_dates=True)
 
