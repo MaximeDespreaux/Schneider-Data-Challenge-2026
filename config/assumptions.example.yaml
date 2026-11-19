@@ -1,0 +1,226 @@
+# =====================================================================
+# assumptions.example.yaml - TEMPLATE WITHOUT LICENSED / CONFIDENTIAL VALUES
+# Copy to config/assumptions.yaml (gitignored) and fill every 'FILL_LOCALLY' value
+# from the licensed MEPS/CRU steel file and the challenge data. Never commit the filled file.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 1. Forecast set-up (from the slides - fixed by the organisers)
+# ---------------------------------------------------------------------
+forecast:
+  origin_month: "2026-09"          # last month of data we are allowed to use
+  horizons_months: [3, 6, 9]       # -> target months 2026-12, 2027-03, 2027-06
+  quantiles: [0.10, 0.50, 0.90]    # p10 / p50 / p90
+  prices: nominal                  # Q&A: not inflation-adjusted
+  status: CONFIRMED
+  source: "Slide 'Recommended submission' + Q&A"
+
+# Scenarios used for Goal A pricing rules
+scenarios:
+  downside: p10                    # prices fall
+  baseline: p50                    # best guess
+  upside:   p90                    # prices rise (the margin risk)
+  status: ASSUMED
+  source: "Team choice - maps the requested 3 scenarios onto our quantiles"
+
+# ---------------------------------------------------------------------
+# 2. Which price series represents each BOM material (the forecast targets)
+# ---------------------------------------------------------------------
+material_series:
+  carbon_steel:     {series: S09, unit: "index (2021=100)"}
+  stainless_steel:  {series: S09, unit: "index (2021=100)", helper_driver: S03}   # nickel
+  galvanised_steel: {series: S10, unit: "index (2021=100)", helper_driver: S05}   # zinc
+  copper:           {series: D01, unit: "EUR/t"}
+  aluminium:        {series: D02, unit: "EUR/t"}
+  plastics:         {series: S11, unit: "index (2021=100)"}   # PBT, PET, ETP
+  epoxy:            {series: EPOXY_RESIN_EUR_T, unit: "EUR/t", file: "Epoxy_for_student.xlsx", starts: "2018-01"}
+  electronics:      {series: EUROSTAT_PPI_C261, unit: "index (2021=100)", file: "to download",
+                     note: "Eurostat sts_inppd_m, NACE C26.1 'electronic components & boards' - same dataset as S07-S11; EU27 or HU (AirSeT plant)"}
+  status: CONFIRMED (except epoxy/electronics mapping = ASSUMED)
+  source: "README section 3 'Which series for which BOM material'"
+
+# ---------------------------------------------------------------------
+# 3. BOM (bill of materials)
+# ---------------------------------------------------------------------
+bom:
+  version: xlsx_v1                 # options: csv_v2 (DEPRECATED) | xlsx_v1 (official)
+  versions:
+    csv_v2:  {file: "bom_materials.csv"}              # DEPRECATED
+    xlsx_v1: {file: "RM_Prices_XHEC_Challenge.xlsx"}  # official (top level of Data/)
+  status: CONFIRMED (team decision after Q&A 18/11 - csv_v2 deprecated; see data/Data/BOM_SOURCE_OF_TRUTH.md)
+  question_for_schneider: "Which BOM is correct? (answered: xlsx_v1)"
+
+  # How we treat the parts of the BOM that have no label / no price
+  rm6_big_unlabelled_slice: carbon_steel   # BOM comment: "most likely carbon steel"
+  rm6_big_unlabelled_share: 0.45
+  other_and_small_unlabelled: keep_flat    # options: keep_flat | renormalise
+  status_unlabelled: ASSUMED
+  source_unlabelled: "README section 5 asks teams to state their rule; same rule for both products"
+
+# ---------------------------------------------------------------------
+# 4. How materials are weighted in the BOM cost index
+# ---------------------------------------------------------------------
+cost_index:
+  base_month: "2026-09"            # index = 100 at forecast origin (CSV rule)
+  weighting: value                 # options: mass | value
+  #   mass  = weight by kg share (README's simple option)
+  #   value = weight by kg x EUR/kg (better: copper is expensive per kg)
+  status: ASSUMED
+  source: "Team choice - show both in the report"
+
+# EUR/kg at the base month (Sep 2026), ONLY needed for 'value' weighting.
+# Steel values = real MEPS / CRU prices from Copia_de_Europe_Steel_INDEXES.xlsx
+# (permission to use that file still TO ASK - keep it out of GitHub).
+eur_per_kg_at_base:
+  copper:           {value: null, status: CONFIRMED, source: "D01 at base month / 1000 (challenge panel) - FILL_LOCALLY"}
+  aluminium:        {value: null,  status: CONFIRMED, source: "D02 at base month / 1000 (challenge panel) - FILL_LOCALLY"}
+  carbon_steel:     {value: null, status: CONFIRMED (file use TO ASK),
+                     source: "MEPS Germany CR coil at base month (licensed file) - FILL_LOCALLY"}
+  stainless_steel:  {value: null, status: CONFIRMED (file use TO ASK),
+                     source: "CRU Germany 304 CR-2mm base + alloy at base month (licensed file) - FILL_LOCALLY"}
+  galvanised_steel: {value: null, status: CONFIRMED (file use TO ASK),
+                     source: "MEPS Germany HDG coil at base month (licensed file) - FILL_LOCALLY"}
+  plastics:         {value: 2.50,  range: [1.50, 3.50], status: ASSUMED,
+                     source: "placeholder - no EUR/t plastics data provided; PET is cheaper, PBT/ETP dearer"}
+  epoxy:            {value: null, status: CONFIRMED,
+                     source: "Epoxy_for_student.xlsx at base month (challenge data) - FILL_LOCALLY"}
+
+# ---------------------------------------------------------------------
+# 5. Materials NOT in the BOM (extras)
+# ---------------------------------------------------------------------
+extras:
+  epoxy:
+    include: true
+    share_of_mass: 0.01            # carved out of 'Other' / unlabelled, NOT all of it
+    range: [0.01, 0.03, 0.05]      # AirSeT uses solid insulation -> may be higher
+    status: ASSUMED
+    source: "Teardown benchmark (outside estimates) + Q&A 'insulation = epoxy'"
+
+  electronics:
+    include: true
+    # Electronics are priced PER BOX in EUR, not per kg: they weigh almost nothing
+    # but cost a lot per kg (teardown uses ~150 EUR/kg vs ~1 EUR/kg for steel).
+    # Carved out of 'Other' / unlabelled like epoxy.
+    eur_per_box_at_base:
+      rm6:
+        value: 50
+        range: [20, 50, 150]
+        status: ASSUMED
+        source: "Teardown: basic RM6 electronics = voltage-presence indicators (VPIS) + small PCBs, a few EUR each; upper end allows for fault indicators"
+      airset:
+        value: 300
+        range: [100, 300, 800]
+        status: ASSUMED - weakest number in this file
+        source: "AirSeT is 'natively digital' (thermal, humidity, voltage/current sensors). No price source - pure estimate, ask Schneider"
+    excludes: "Optional add-ons (Easergy T300 remote terminal unit, motorisation) - priced as options, not in the base box"
+    price_series: EUROSTAT_PPI_C261
+    status: TO ASK
+    question_for_schneider: "Roughly what EUR of electronics/sensors are in a base RM6 and a base RM AirSeT?"
+
+# ---------------------------------------------------------------------
+# 6. From material cost to selling price and margin (Goal A)
+# ---------------------------------------------------------------------
+pricing:
+  rm6_selling_price_eur:
+    value: null   # FILL_LOCALLY (synthetic benchmark)
+    status: ASSUMED
+    source: "Synthetic price benchmark, Schneider P50 2026"
+  airset_selling_price_eur:
+    value: null
+    status: TO ASK
+    question_for_schneider: "Can you share 'RM AirSeT and RM6 Product and Cost Overview'?"
+  material_share_of_price:
+    value: 0.20
+    range: [0.15, 0.20, 0.30, 0.40]
+    status: ASSUMED
+    source: "Teardown material cost / synthetic price (challenge data)"
+  profit_margin_rm6:
+    value: 0.15
+    range: [0.10, 0.15, 0.20, 0.25]
+    status: TO ASK
+  profit_margin_airset:
+    value: 0.10                    # slides: AirSeT has a 'thinner margin'
+    range: [0.05, 0.10, 0.15]
+    status: TO ASK
+  margin_floor:                    # the line we never cross, whatever the levers say
+    rm6:    {value: 0.08, range: [0.05, 0.08, 0.10]}
+    airset: {value: 0.05, range: [0.03, 0.05, 0.08]}
+    status: ASSUMED
+    source: "Team proposal - below this, the cost increase is always passed on or indexed"
+
+# ---------------------------------------------------------------------
+# 7. Quote rules (Goal A) - starting values, to tune with the backtest
+# ---------------------------------------------------------------------
+quote_rules:
+
+  # --- 7a. Base rules -------------------------------------------------
+  indexation_trigger_pct: 5        # price updates if cost index moves more than +/-5%
+  risk_buffer: "p90 minus p50, in EUR per box"
+  validity:
+    narrow_band_days: 90           # p10-p90 band narrow -> longer validity
+    wide_band_days: 30             # band wide -> shorter validity
+    band_threshold_pct: 10         # what counts as 'wide'
+  status: ASSUMED
+  source: "Team proposal - justify with backtest results"
+
+  # --- 7b. LEVER 1: competitor pressure (RM6) -------------------------
+  # Question: our costs are rising - do competitors' costs rise more or less?
+  #   - They are hit harder  -> they must raise prices -> we can pass ours on (protect margin)
+  #                             or hold price to win share (strategy switch below)
+  #   - We are hit harder    -> passing it all on loses deals -> absorb part, down to the margin floor
+  competitor_lever:
+    applies_to: [rm6]
+    competitors: [ABB, Siemens, Ormazabal, Eaton]     # SGC excluded: teardown broken (236 g total)
+    competitor_cost_change:
+      method: "competitor teardown material SHARES x our same material forecasts"
+      cross_check: "competitor price trend in synthetic price benchmark (yearly)"
+    gap_definition: "competitor avg cost change % minus our cost change % (same horizon, p50)"
+    bands_pct_points:
+      competitors_hit_harder: ">= +2"
+      similar:                "-2 to +2"
+      we_hit_harder:          "<= -2"
+    pass_through:                  # share of OUR cost increase we put into the price
+      competitors_hit_harder: 1.00
+      similar:                1.00
+      we_hit_harder:          0.50
+    strategy_when_competitors_hit_harder: protect_margin   # options: protect_margin | gain_share
+    #   protect_margin = pass on 100%, keep our margin
+    #   gain_share     = pass on less than competitors, look cheaper, win deals
+    gain_share_pass_through: 0.50
+    status: ASSUMED
+    source: "Team proposal. Teardown kg are outside estimates -> use material shares only, as a relative signal"
+
+  # --- 7c. LEVER 2: customer importance & deal size (RM6 and AirSeT) --
+  # Question: how much margin are we willing to give up to win THIS deal?
+  customer_lever:
+    applies_to: [rm6, airset]
+    customer_tiers:
+      strategic: {examples: "hyperscale data-centre operator, multi-year framework agreement", max_margin_giveup_pts: 5}
+      key:       {examples: "repeat customer, regional utility, colocation data centre",       max_margin_giveup_pts: 3}
+      standard:  {examples: "one-off project",                                                 max_margin_giveup_pts: 0}
+    deal_size_eur:                 # total order value
+      small:  {range: "< 250k",     extra_giveup_pts: 0}
+      medium: {range: "250k - 1M",  extra_giveup_pts: 1}
+      large:  {range: "> 1M",       extra_giveup_pts: 2}
+    large_or_long_deals_require_indexation: true   # big multi-month orders: index instead of absorbing
+    status: ASSUMED
+    source: "Team proposal - tiers and thresholds to validate with Schneider sales"
+
+  # --- 7d. How the levers combine ------------------------------------
+  # 1. Cost increase in EUR/box (from forecast, per scenario)
+  # 2. x pass_through from the competitor lever   -> proposed price increase
+  # 3. minus allowed give-up from the customer lever (tier + deal size, in margin points)
+  # 4. clamp: resulting margin may never fall below margin_floor
+  # 5. if the cost index band (p10-p90) is wide or deal is large/long -> add indexation clause
+  combination_order: [competitor_lever, customer_lever, margin_floor, indexation_check]
+
+# ---------------------------------------------------------------------
+# 8. Open questions for Schneider (keep this list up to date)
+# ---------------------------------------------------------------------
+open_questions:
+  - "Which BOM version is correct (see versions above)?"
+  - "Can you share 'RM AirSeT and RM6 Product and Cost Overview' (slide references [2], [3])?"
+  - "May we use the MEPS/CRU steel price file (kept out of GitHub)?"
+  - "Typical margin, or material share of selling price, for RM6 and AirSeT?"
+  - "Roughly what EUR of electronics/sensors are in a base RM6 and a base RM AirSeT?"
+  - "How does sales segment customers (tiers / deal sizes) when deciding discounts?"

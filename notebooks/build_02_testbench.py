@@ -78,7 +78,8 @@ md("""**Lecture.**
 - **Pendant le choc 2021-22, les fourchettes classiques s'effondrent (~45 % de couverture)** et les ratés sont
   surtout **à la hausse** : exactement le cas où la marge d'un devis à prix fixe est détruite.
 - La version **`naive_vol`** (bandes qui s'élargissent dès que la volatilité monte) remonte la couverture du choc à ~70 %+
-  et atteint ~79 % sur l'ensemble, avec la meilleure perte quantile → **c'est la référence d'incertitude à battre.**
+  et atteint ~76–77 % sur l'ensemble 2020-26 (crise incluse), avec la meilleure perte quantile → **c'est la référence
+  d'incertitude à battre.**
 - Reste un biais : trop de dépassements au-dessus du P90 (~15–19 %) et trop peu sous le P10 (~4–6 %). Pour Schneider,
   c'est le côté qui compte : le **P90 est encore un peu optimiste** → la marge de sécurité doit en tenir compte.""")
 
@@ -98,7 +99,7 @@ code("""bom = table[table.series.isin(["RM6_NE_IQI_433520", "RMAirSeT_IIQ_24kV_I
 bom.set_index(["series", "model", "horizon"])[["n", "MAE_pct", "rel_MAE", "DM_p", "coverage", "below", "above", "width_pct"]]""")
 md("""**Lecture.** Erreur typique du naïf sur le coût matières : quelques % à 3 mois, davantage à 9 mois — c'est l'ordre de
 grandeur de la « marge à risque » d'un devis à prix fixe (partie 4). Les poids viennent de `config/assumptions.yaml`
-(BOM csv_v2, pondération en valeur, base 2026-09 = 100) ; epoxy et électronique pas encore inclus.""")
+(BOM officielle xlsx_v1, pondération en valeur, base = origine = 100) ; epoxy et électronique pas encore inclus.""")
 
 md("## 6. Robustesse : mode realtime (délais de publication)")
 code("""rt = pd.read_csv(R["realtime"] / "overview.csv").set_index(["model", "horizon"]).loc[MODELS]

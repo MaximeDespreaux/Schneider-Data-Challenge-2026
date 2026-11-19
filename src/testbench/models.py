@@ -87,6 +87,10 @@ class NaiveVolScaled:
     # avant 2024 (perte quantile la plus basse) ; confirmée ensuite sur 2024-26 (encore la meilleure).
     halflife: float = 3.0
     floor: float = 0.5  # la vol actuelle ne descend pas sous 50 % de la vol longue (évite des bandes trop fines)
+    # plancher de la vol HISTORIQUE servant à standardiser (évite 0/0 sur les périodes à prix administré, ex. minerai
+    # de fer avant 2010). Valeur choisie parmi {0.05, 0.2, 0.5} sur les prévisions à cible < 2024 uniquement
+    # (perte quantile la plus basse : 0.5 ; confirmé sur 2024-26). Couverture un peu plus basse, score meilleur.
+    hist_floor: float = 0.5
     # recenter=True : bandes symétriques autour du prix actuel (on retire la médiane des variations passées).
     # recenter=False : on garde l'asymétrie historique (les prix ont plus souvent monté que baissé) — corrige
     # le P90 trop optimiste, le P50 reste le prix actuel.
@@ -107,7 +111,7 @@ class NaiveVolScaled:
             ly = np.log(y)
             dh = (ly.shift(-h) - ly).dropna()
             # plancher : des périodes à prix administré (ex. minerai de fer avant 2010) ont une vol ≈ 0
-            v = vol.reindex(dh.index).dropna().clip(lower=self.floor * long_vol)
+            v = vol.reindex(dh.index).dropna().clip(lower=self.hist_floor * long_vol)
             z = (dh.reindex(v.index) / (v * np.sqrt(h))).to_numpy()
             z = z[np.isfinite(z)]
             if len(z) < 12:

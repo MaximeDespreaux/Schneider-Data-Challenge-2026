@@ -30,8 +30,21 @@ BOM_VERSION_MAP = {"csv_v2": "csv", "xlsx_v1": "root"}
 
 
 def load_assumptions(path: Path = CONFIG) -> dict:
+    """Lit config/assumptions.yaml (local, gitignoré : contient des prix MEPS/CRU sous licence)."""
+    if not Path(path).exists():
+        raise FileNotFoundError(
+            f"{path} introuvable. Copier config/assumptions.example.yaml vers config/assumptions.yaml, puis remplir "
+            "les valeurs FILL_LOCALLY (prix MEPS/CRU sous licence, données du challenge). Ne jamais le commiter.")
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        a = yaml.safe_load(f)
+    missing = [k for k, v in a.get("eur_per_kg_at_base", {}).items()
+               if k in set(FAMILY_TO_KEY.values()) and v.get("value") is None]
+    if missing:
+        raise ValueError(f"Valeurs à remplir dans {path} (eur_per_kg_at_base) : {missing}")
+    if a["bom"]["version"] == "csv_v2":
+        import warnings
+        warnings.warn("BOM csv_v2 obsolète : l'équipe a validé xlsx_v1 (RM_Prices_XHEC_Challenge.xlsx).", stacklevel=2)
+    return a
 
 
 def bom_weights(assumptions: dict | None = None) -> pd.DataFrame:

@@ -70,11 +70,12 @@ def load_catalogs() -> tuple[pd.DataFrame, pd.DataFrame]:
     return rm, en
 
 
-def load_bom(version: str = "csv", rm6_carbon_share: float = 0.45) -> pd.DataFrame:
+def load_bom(version: str = "root", rm6_carbon_share: float = 0.45) -> pd.DataFrame:
     """BOM nettoyée, une ligne par (produit, matière).
 
-    version="csv"  -> panel/bom_materials.csv (data.zip, documentée)
-    version="root" -> RM_Prices_XHEC_Challenge.xlsx à la racine (plus récente, en conflit)
+    version="root" -> RM_Prices_XHEC_Challenge.xlsx à la racine de Data/ : **BOM officielle** (décision d'équipe
+                      après la Q&A du 18/11 ; = ``xlsx_v1`` dans config/assumptions.yaml)
+    version="csv"  -> panel/bom_materials.csv (data.zip) : **obsolète**, gardée seulement pour les tests de sensibilité
     La grosse part non étiquetée du RM6 est supposée en acier carbone : masse = rm6_carbon_share × masse totale implicite.
     """
     if version == "csv":

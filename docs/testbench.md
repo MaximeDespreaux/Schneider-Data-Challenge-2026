@@ -88,7 +88,10 @@ metrics.overview(table)
 
 ## Cibles
 Les 14 séries matières du panel (`src/data.py::RM_TARGETS`) + 2 indices de coût BOM (`src/testbench/targets.py`) :
-indice à quantités fixes, pondéré en valeur, base 2026-09 = 100, paramètres lus dans `config/assumptions.yaml`.
+indice à quantités fixes, pondéré en valeur, reconstruit à chaque origine (base = origine = 100), BOM officielle
+`xlsx_v1` (`RM_Prices_XHEC_Challenge.xlsx` ; le CSV `bom_materials.csv` est obsolète). Paramètres lus dans
+`config/assumptions.yaml`, **local et gitignoré** car il contient des prix MEPS/CRU sous licence : copier
+`config/assumptions.example.yaml` vers `config/assumptions.yaml` et remplir les valeurs `FILL_LOCALLY`.
 
 ## Format du CSV
 `src/testbench/submission.py` : `from_forecasts(...)` convertit une sortie du banc au format Schneider,
