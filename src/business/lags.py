@@ -72,6 +72,11 @@ def join_lags(shock: pd.DataFrame, lag_tab: pd.DataFrame, cfg: dict) -> pd.DataF
     return shock
 
 
+def ingredient_label(col: str) -> str:
+    """'EPX_BENZENE' -> 'benzene' (epoxy feedstock columns from data.load_epoxy)."""
+    return col.removeprefix("EPX_").lower()
+
+
 def _panel() -> pd.DataFrame:
     try:
         from src.external.signals import build_panel as long_panel
@@ -94,8 +99,7 @@ def run(cfg: dict | None = None) -> dict:
     y_ep = d.load_epoxy_series()
     for ing in la["epoxy_ingredients"]:
         x = pd.to_numeric(ep[ing], errors="coerce").groupby(level=0).mean()
-        short = ing.split("_")[0].lower()
-        pairs.append((f"epoxy_{short}_to_EP01", ing, "EP01", x, y_ep))
+        pairs.append((f"epoxy_{ingredient_label(ing)}_to_EP01", ing, "EP01", x, y_ep))
     rows = []
     for name, xn, yn, x, y in pairs:
         both = pd.concat([x.rename("x"), y.rename("y")], axis=1).sort_index()

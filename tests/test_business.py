@@ -259,3 +259,9 @@ def test_cache_invalidated_when_champion_newer(tmp_path):
     os.utime(champ, (500_000, 500_000))  # older but now covers A -> naive_vol cache replaced
     use, why = forecasts.cache_decision(cache, champ, origin, "champion")
     assert use is False and "available" in why
+
+
+def test_epoxy_ingredient_labels_are_unique():
+    from src.business.lags import ingredient_label
+    labels = [ingredient_label(c) for c in ["EPX_BENZENE", "EPX_ACETONE", "EPX_ECH"]]
+    assert labels == ["benzene", "acetone", "ech"]
