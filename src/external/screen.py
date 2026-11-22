@@ -23,7 +23,7 @@ SPLIT = pd.Timestamp("2024-01-01")
 PERIODS = [("2003-01-01", "2012-12-01"), ("2013-01-01", "2023-12-01")]
 
 
-def screen(panel: pd.DataFrame | None = None, horizons=(3, 6, 9), max_keep: int = 6) -> pd.DataFrame:
+def screen(panel: pd.DataFrame | None = None, horizons=(3, 6, 9), max_keep: int = 6, cross=None) -> pd.DataFrame:
     panel = build_panel() if panel is None else panel
     # indices BOM (poids fixés au mois d'ancrage : uniquement pour le CRIBLAGE descriptif pré-2024 ;
     # le backtest, lui, les reconstruit à chaque origine)
@@ -31,7 +31,7 @@ def screen(panel: pd.DataFrame | None = None, horizons=(3, 6, 9), max_keep: int 
     panel = panel.join(der(panel, panel, pd.Timestamp("2026-09-01")))
     rows = []
     for tgt in DEFAULT_TARGETS:
-        feats = make_features(panel, tgt)
+        feats = make_features(panel, tgt, cross=cross)
         ly = np.log(panel[tgt])
         for h in horizons:
             fut = ly.shift(-h) - ly

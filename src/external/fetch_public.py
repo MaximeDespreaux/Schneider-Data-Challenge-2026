@@ -69,6 +69,9 @@ FRED = {
     "INDPRO": "Production industrielle US", "IPG331S": "Production US métaux primaires", "TCU": "Taux d'utilisation US",
     "HOUST": "Mises en chantier US", "AMTMNO": "Nouvelles commandes manufacturières US",
     # --- régime de marché / nervosité / monnaie
+    # --- historique long des séries énergie fournies (E06, E07, E08, E22 ; ED03 / ED04 en sont dérivées)
+    "PCOALAUUSDM": "Charbon Australie USD/t (FMI)", "PNGASUSUSDM": "Gaz naturel US USD/MMBtu (FMI)",
+    "PNGASJPUSDM": "GNL Japon USD/MMBtu (FMI)", "PNRGINDEXM": "Indice énergie FMI",
     "VIXCLS": "VIX (volatilité actions)", "OVXCLS": "OVX (volatilité pétrole)", "GEPUCURRENT": "Incertitude politique mondiale",
     "DTWEXBGS": "Dollar US large (indice)", "T10YIE": "Inflation anticipée US 10 ans", "DGS10": "Taux 10 ans US",
 }
@@ -83,7 +86,9 @@ EUROSTAT = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/
 EUROSTAT_SERIES = {"S07": ("C2444", "EU27_2020"), "S08": ("C2442", "EU27_2020"), "S09": ("C241", "EU27_2020"),
                    "S10": ("C241", "DE"), "S11": ("C2016", "EU27_2020"),
                    # NACE C26.1 = composants et cartes électroniques ; HU = usine AirSeT, FR = usine RM6
-                   "EL01": ("C261", "EU27_2020"), "EL02": ("C261", "HU"), "EL03": ("C261", "FR")}
+                   "EL01": ("C261", "EU27_2020"), "EL02": ("C261", "HU"), "EL03": ("C261", "FR"),
+                   # NACE D35 = électricité, gaz, vapeur : historique long de E14 (DE) et E15 (FR)
+                   "E14": ("D35", "DE"), "E15": ("D35", "FR")}
 
 
 def fetch_fred(code: str) -> pd.Series:
@@ -204,6 +209,21 @@ def gscpi_vintages_to_csv(text: str, csv: Path) -> pd.Series:
     return s
 
 
+EXPECTED_COLUMNS = {"fred": lambda: set(FRED), "eurostat": lambda: set(EUROSTAT_SERIES), "gscpi": lambda: {"GSCPI"}}
+
+
+def _complete(name: str) -> bool:
+    """Le fichier de sortie existe ET contient toutes les séries configurées (sinon on re-télécharge la source)."""
+    path = EXT / OUTPUTS[name]
+    if not path.exists():
+        return False
+    cols = set(pd.read_csv(path, nrows=0).columns)
+    missing = EXPECTED_COLUMNS[name]() - cols
+    if missing:
+        print(f"{name} : {path.name} existe mais il manque {sorted(missing)} -> re-téléchargement")
+    return not missing
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Télécharge les données publiques dans data/raw/external/")
     ap.add_argument("--only", default="all", choices=["all", "fred", "eurostat", "gscpi"])
@@ -216,8 +236,9 @@ def main(argv=None):
     for name, fn in steps.items():
         if args.only not in ("all", name):
             continue
-        if (EXT / OUTPUTS[name]).exists() and not args.force:
-            print(f"{name} : {EXT / OUTPUTS[name]} existe déjà -> ignoré (--force pour re-télécharger)")
+        if not args.force and _complete(name):
+            print(f"{name} : {EXT / OUTPUTS[name]} existe déjà avec toutes les séries -> ignoré "
+                  "(--force pour re-télécharger)")
             continue
         fn(log)
     if not log:
