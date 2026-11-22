@@ -106,3 +106,5 @@ indice à quantités fixes, pondéré en valeur, reconstruit à chaque origine (
 
 ## Intégration continue
 `.github/workflows/tests.yml` lance `uv run pytest` à chaque push. Les tests n'utilisent que des données synthétiques.
+
+Modules métier (pricing objectif A, objectif B, décarbonation) : voir [business.md](business.md).

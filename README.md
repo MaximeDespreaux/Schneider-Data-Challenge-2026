@@ -38,6 +38,16 @@ Place the challenge files in `data/`. Its contents are gitignored — only the f
 
 Add a package with `uv add <pkg>` (or `uv add --dev <pkg>` for dev tools).
 
+## Business modules
+
+Goal A pricing levers, Goal B and decarbonisation analyses (`src/business/`, settings in `config/business.yaml`):
+
+```bash
+uv run python -m src.business.run_all
+```
+
+Outputs (confidential, gitignored) go to `data/outputs/business/`, with a summary in `REPORT.md`. See `docs/business.md`.
+
 ## Git hooks
 
 `make install` (or `make hooks`) enables the hooks in `.githooks/`. The `pre-commit` hook blocks commits on `main` that modify config files (`pyproject.toml`, `uv.lock`, `Makefile`, `.gitignore`, `.python-version`, `.githooks/*`) — make those changes on a branch instead.
