@@ -150,20 +150,21 @@ def _fails(res: pd.DataFrame) -> list:
     return [f"{r.model}@{r.origin:%Y-%m}" for r in res[~res.PASS].itertuples()]
 
 
-def _mode_checks(raw, prepare, targets, models, derive, mode, lags, origins) -> dict:
+def _mode_checks(raw, prepare, targets, models, derive, mode, lags, origins, skill_origins=None) -> dict:
     panel = prepare(raw)
     tg = [s for s in targets if s in panel]  # (a), (b), (d) run on panel columns (no derived index)
     naive = [] if any(m.name == "naive" for m in models) else [Naive()]
     kw = dict(mode=mode, lags=lags, verbose=False)
+    so = origins if skill_origins is None else skill_origins  # (a)/(b) score skill: need many origins
 
     leak = planted_leak_prepare(tg)
-    fc = run_backtest(leak(panel), tg, [Naive(), PlantedLeak()], origins=origins, **kw)
+    fc = run_backtest(leak(panel), tg, [Naive(), PlantedLeak()], origins=so, **kw)
     rel = float(pooled_rel_ql(fc, horizon=3)["planted_leak"])
     aud = perturbation_audit(raw, lambda r: leak(prepare(r)), tg, [PlantedLeak()], origins, mode, lags)
     flagged = bool((aud["max_abs_diff"] > 0).any())
     a = {"rel_QL_h3": rel, "flagged": flagged, "PASS": bool(rel < 0.2 and flagged)}
 
-    fc = run_backtest(permute_targets(panel, tg), tg, naive + list(models), origins=origins, **kw)
+    fc = run_backtest(permute_targets(panel, tg), tg, naive + list(models), origins=so, **kw)
     rels = {k: float(v) for k, v in pooled_rel_ql(fc).items() if k != "naive"}
     b = {"rel_QL": rels, "PASS": bool(all(v >= 0.97 for v in rels.values()))}
 
@@ -179,10 +180,10 @@ def _mode_checks(raw, prepare, targets, models, derive, mode, lags, origins) -> 
 
 
 def run_canaries(raw, prepare, targets, models, derive, lags_by_mode: dict, origins, out_dir,
-                 extra_checks: dict[str, Callable[[], bool]] | None = None) -> dict:
+                 extra_checks: dict[str, Callable[[], bool]] | None = None, skill_origins=None) -> dict:
     """Runs (a) to (d) in each mode of ``lags_by_mode`` ({mode: lags or None}) plus ``extra_checks`` (e.g. the
     meta-pass identity), and writes ``out_dir/<git_head>.json``. PASS only if every check passes."""
-    results = {mode: _mode_checks(raw, prepare, targets, models, derive, mode, lags, origins)
+    results = {mode: _mode_checks(raw, prepare, targets, models, derive, mode, lags, origins, skill_origins)
                for mode, lags in lags_by_mode.items()}
     results["extra"] = {k: bool(f()) for k, f in (extra_checks or {}).items()}
     ok = all(r["PASS"] for mode in lags_by_mode for r in results[mode].values()) and all(results["extra"].values())
