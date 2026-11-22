@@ -2,6 +2,7 @@
 
 - SignalRidge : régression ridge (sans constante -> retombe sur « pas de changement » sans signal) de la variation
   à h mois sur les signaux retenus par le criblage (src/external/screen.py, cibles < 2024 uniquement).
+- ChampionWF  : Champion dont le criblage est refait à chaque origine (``screen.screen_at``).
 - Hybrid      : prend la valeur centrale (P50) d'un modèle et la forme de fourchette d'un autre (`naive_vol`),
   car les fourchettes issues des résidus de régression sont trop étroites.
 """
@@ -14,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from src.external.features import make_features
+from src.external.screen import screen_at
 from src.testbench.models import _frame
 
 HORIZONS = (3, 6, 9)
@@ -88,6 +90,20 @@ class Champion:
         pts = self.ridge.point_frame(y, sig_steps, exog) if sig_steps else pd.Series(dtype=float)
         p50 = np.array([pts.get(s, base) for s in steps], dtype=float)
         return _frame(steps, p50 * b["p10"] / b["p50"], p50, p50 * b["p90"] / b["p50"])
+
+
+@dataclass
+class ChampionWF:
+    """Champion avec criblage WALK-FORWARD : à chaque prévision, ``screen_at`` choisit les signaux sur les seules
+    cibles réalisées à l'origine (jamais la coupure 2024 inspectée), puis délègue à ``Champion``."""
+
+    min_signals: int = 3
+    max_keep: int = 6
+    name: str = "champion_wf"
+
+    def forecast(self, y, steps, exog=None):
+        sel = screen_at(exog, y.name, max_keep=self.max_keep)
+        return Champion(selected=sel, min_signals=self.min_signals, name=self.name).forecast(y, steps, exog=exog)
 
 
 @dataclass
