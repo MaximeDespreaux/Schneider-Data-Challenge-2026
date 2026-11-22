@@ -74,3 +74,18 @@ Written before the graded run. Committed and tagged together with the code that 
 - `driver_ridge` alpha was hand-set before this work.
 - The copper forward is the LME 3M/cash spread scaled to h/3.
 - Selling prices, margins and material share are assumptions until Schneider confirms them.
+
+## Amendment before grading (2026-11-22, freeze v2)
+
+- **Band calibration tested and not adopted.** A walk-forward conformal shift of each tail (`calibration.py`) was evaluated on the dev window. The rule was written in the ledger before the evaluation: submit `wf_blend_cal` only if its pooled dev pinball loss is lower than `wf_blend`'s. It was worse (1.017 against 0.978 of naive), and coverage dropped at 9 months. The submitted model stays `wf_blend`.
+- **Fixes from the independent code review**, which found no look-ahead path:
+  - In submission mode, the licensed and extra inputs (L01–L03, EP01, EL01) now keep their live publication gap at every origin. Only Schneider's CSV series are exempt.
+  - The copper forward in the margin replay is a USD forward, so the EUR/USD move stays with Schneider.
+  - The replay reports the effective markup including clause revisions.
+  - The graded run always scores both modes, and the report refuses a single mode.
+  - `driver_ridge` no longer loses its whole training sample when a driver column has no value yet (licensed steel before 2012). This changes a candidate after the dev choice of `power`; the power choice is not revisited.
+  - The bootstrap block length is h + publication lag.
+- **Declared limits added:**
+  - In realtime mode, a masked BOM component is carried flat to the origin, which makes BOM-index bands slightly narrow (conservative, not leaky).
+  - The Kupiec test pools hits across a group's series, so its p-values are too confident; it is reported only.
+  - The canaries run on the assembled panel (identity `prepare`), so panel construction itself is covered by the truncation tests of the loaders and the BOM deriver, not by the canaries.
