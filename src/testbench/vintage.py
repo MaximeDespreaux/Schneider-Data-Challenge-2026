@@ -22,6 +22,8 @@ REALTIME_LAG_MONTHS: dict[str, int] = {
     **{e: 1 for e in ["E04", "E09", "E10", "E11", "E12", "E19", "E23", "E24", "ED05"]},
     **{e: 4 for e in ["E20", "E21", "ED06"]},
     **{e: 2 for e in ["ED01", "ED02", "ED03", "ED04"]},
+    "L01": 1, "L02": 1, "L03": 1, "EP01": 1, "BR01": 1,
+    "EL01": 2, "EL02": 2, "EL03": 2,
 }
 
 

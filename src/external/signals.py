@@ -13,6 +13,8 @@ aucun signal ne peut voir le futur (vérifié par le test de perturbation, src/t
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import openpyxl
@@ -27,6 +29,7 @@ LONG_SOURCES = {
     "S04": ("fred", "PIORECRUSDM"), "S05": ("fred", "PZINCUSDM"), "S06": ("fred", "EXUSEU"),
     "S12": ("fred", "WPU1017"), "S13": ("fred", "PCU325211325211"),
     "S07": ("eu", "S07"), "S08": ("eu", "S08"), "S09": ("eu", "S09"), "S10": ("eu", "S10"), "S11": ("eu", "S11"),
+    "EL01": ("eu", "EL01"), "EL02": ("eu", "EL02"), "EL03": ("eu", "EL03"),
     "E01": ("fred", "POILBREUSDM"), "E05": ("fred", "PNGASEUUSDM"),
 }
 
@@ -73,8 +76,12 @@ def load_lme() -> pd.DataFrame:
 def load_external() -> pd.DataFrame:
     f = _fred()
     x = f[[c for c in EXTERNAL if c in f]].rename(columns=EXTERNAL)
-    g = pd.read_csv(EXT / "gscpi.csv", index_col=0, parse_dates=True)["GSCPI"].rename("X_GSCPI")
-    x = x.join(g, how="outer")
+    if (EXT / "gscpi.csv").exists():
+        g = pd.read_csv(EXT / "gscpi.csv", index_col=0, parse_dates=True)["GSCPI"].rename("X_GSCPI")
+        x = x.join(g, how="outer")
+    else:
+        warnings.warn(f"{EXT / 'gscpi.csv'} absent : signal X_GSCPI ignoré (lancer src.external.fetch_public).",
+                      stacklevel=2)
     try:
         x = x.join(load_lme(), how="outer")
     except FileNotFoundError:
@@ -97,6 +104,24 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
         ratio = panel.at[first, col] / longs.at[first]
         before = idx < first
         out.loc[before, col] = longs[before] * ratio
+    # acier MEPS/CRU et epoxy : même source que le panel (ratio = 1). EP01 commence en 2018-01 (NaN avant).
+    longs = {}
+    try:
+        longs.update(d.load_licensed_steel().reindex(idx).to_dict("series"))
+    except FileNotFoundError:
+        pass
+    try:
+        longs["EP01"] = d.load_epoxy_series().reindex(idx)
+    except FileNotFoundError:
+        pass
+    for col, src_s in longs.items():
+        if col not in out:
+            continue
+        first = panel[col].first_valid_index()
+        if first is None:
+            continue
+        before = idx < first
+        out.loc[before, col] = src_s[before]
     # séries dérivées en EUR (définies seulement là où le taux EUR/USD existe, i.e. depuis 1999)
     before = out.index < panel.index.min()
     out.loc[before, "D01"] = out.loc[before, "S01"] / out.loc[before, "S06"]
