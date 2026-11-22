@@ -128,12 +128,25 @@ def main(argv=None):
         for mode in modes:
             run_mode(panel, der, tg, candidate_models(), mode, origins, OUT / "graded" / tag / mode, live,
                      lambda s: s[s.origin >= protocol.PURGE])
+        _report(OUT / "graded" / tag)
         print(f"graded run written to {OUT / 'graded' / tag}")
         return tag
     origins = pd.date_range(protocol.DEV[0], protocol.DEV[1], freq="MS")
     for mode in modes:
         run_mode(panel, der, tg, candidate_models(), mode, origins, OUT / "dev" / mode, live, protocol.dev_view)
+    _report(OUT / "dev")
     print(f"dev run written to {OUT / 'dev'}")
+
+
+def _report(run_dir):
+    from .report import write_report
+    can = d.OUT / "canaries" / f"{protocol.git_head()}.json"
+    mde_path = OUT / "dev" / "mde_submission.csv"
+    mde = pd.read_csv(mde_path) if mde_path.exists() else None
+    if can.exists():
+        print(f"report -> {write_report(run_dir, can, mde)}")
+    else:
+        print(f"no canary report for HEAD ({can}): run --canaries; report not written")
 
 
 def canaries(panel, der, tg, live):
