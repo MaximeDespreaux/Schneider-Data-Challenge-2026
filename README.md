@@ -16,6 +16,14 @@ make lab       # launches JupyterLab
 
 Run any command inside the environment with `uv run <cmd>`, or activate it with `source .venv/bin/activate`.
 
+Full setup and data layout: [docs/SETUP.md](docs/SETUP.md)
+
+```bash
+make data-check   # check data/raw/ and config/assumptions.yaml are in place
+make all          # data-check -> fetch -> test -> champion -> business
+make help         # list all targets
+```
+
 ## Project layout
 
 ```
@@ -62,3 +70,14 @@ Outputs (confidential, gitignored) go to `data/outputs/business/`, with a summar
 | `lab`        | Launch JupyterLab                             |
 | `clean`      | Remove caches and notebook checkpoints        |
 | `clean-venv` | Remove the virtual environment                |
+| `data-check` | Check data files and local config are in place |
+| `fetch`      | Download public data into `data/raw/external/` |
+| `test`       | Run the unit tests (synthetic data only)       |
+| `verify`     | Local checks on real data (data fixes, drivers)|
+| `backtest`   | Full baseline backtest (slow)                  |
+| `champion`   | Champion v1 + draft submission CSV             |
+| `champion-v2`| Champion v2 option (files suffixed `_v2`)      |
+| `compare`    | Champion v1 vs v2 + provided-series table      |
+| `business`   | Business modules + `REPORT.md`                 |
+| `submission` | Alias of `champion`                            |
+| `all`        | data-check, fetch, test, champion, business    |
