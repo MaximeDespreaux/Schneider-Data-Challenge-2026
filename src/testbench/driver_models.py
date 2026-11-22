@@ -11,8 +11,8 @@ Ridge SANS constante sur variables standardisées → en l'absence de signal, la
 changement » (le naïf). Fourchettes : quantiles des résidus d'entraînement à h mois (légèrement optimistes,
 à recalibrer — voir `naive_vol`).
 
-Uniquement des données gratuites du panel. Les prix CRU/MEPS (meilleur driver de l'acier selon l'équipe) et le LME 3 mois
-s'ajouteront quand la partie 1 les aura mis dans le panel.
+Uniquement des données gratuites du panel. L'acier MEPS/CRU (L01-L03), l'epoxy (EP01) et l'électronique (EL01) sont
+désormais dans le panel et servent de drivers / cibles comme indiqué dans DRIVERS.
 """
 
 from __future__ import annotations
@@ -27,18 +27,23 @@ from .models import _frame
 DRIVERS: dict[str, list[str]] = {
     "S07": ["D01", "S05"],
     "S08": ["D02", "ED02", "E13"],
-    "S09": ["S04", "S03", "ED02", "E13", "D02"],
-    "S10": ["S04", "S05", "ED02", "E13"],
+    "S09": ["L01", "S04", "S03", "ED02", "E13", "D02"],
+    "S10": ["L03", "S04", "S05", "ED02", "E13"],
     "S11": ["ED01", "ED02"],
     "S12": ["S04", "E18"],
     "S13": ["E01", "E06"],
     "S01": ["S05", "ED01"], "D01": ["S05", "ED01"],
     "S02": ["ED02", "E09"], "D02": ["ED02", "E09"],
     "S03": ["ED01"], "S04": ["ED01"], "S05": ["D01"],
-    "RM6_NE_IQI_433520": ["S05", "S04", "ED02", "E13"],
-    "RMAirSeT_IIQ_24kV_IEC": ["S04", "S03", "ED02", "E13"],
+    "RM6_NE_IQI_433520": ["D01", "L01", "S05", "ED02", "E13"],
+    "RMAirSeT_IIQ_24kV_IEC": ["L01", "L02", "D01", "ED02", "E13"],
+    "L01": ["S04", "ED02", "E13"],
+    "L03": ["S04", "S05", "ED02", "E13"],
+    "L02": ["S03", "ED02", "E13"],
+    "EP01": ["ED01", "ED02"],
+    "EL01": ["D01", "E13"],
 }
-MARKET_TWIN = {"S07": "D01", "S08": "D02"}
+MARKET_TWIN = {"S07": "D01", "S08": "D02", "S09": "L01", "S10": "L03"}
 
 
 def _ridge_no_intercept(X: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
