@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -119,6 +120,30 @@ def last_valid_at(s: pd.Series, month) -> float:
 DIRECT_EUR_T = {"D01", "D02", "L01", "L02", "L03", "EP01", "BR01"}  # séries déjà en EUR/t ; les autres sont des indices sans unité de prix
 
 
+def _chain_back(idx: pd.Series, v: pd.DataFrame, w: pd.Series, origin: pd.Timestamp) -> pd.Series:
+    """Before the first month where the full basket exists (up to the origin), extend the index backwards with the
+    weighted monthly growth of the components available in both months (chain-linking: no jump when a component
+    starts later). Months after the origin are left as is (truth always needs the full basket)."""
+    hist = idx.loc[:origin]
+    gaps = hist.index[hist.isna()]
+    if len(gaps) == 0 or hist.isna().all():
+        return idx
+    first = hist.index[hist.index > gaps.max()].min() if gaps.max() < hist.index.max() else None
+    if first is None:
+        return idx
+    growth = v / v.shift(1)
+    ok = growth.notna()
+    g = (growth.where(ok).mul(w).sum(axis=1) / ok.mul(w).sum(axis=1)).where(ok.any(axis=1))
+    out = idx.copy()
+    pos = list(out.index).index(first)
+    for i in range(pos, 0, -1):
+        gi = g.iloc[i]
+        if not np.isfinite(gi) or gi <= 0:
+            break
+        out.iloc[i - 1] = out.iloc[i] / gi
+    return out
+
+
 def make_bom_deriver(panel_full: pd.DataFrame | None = None, assumptions: dict | None = None):
     """Fabrique la fonction qui construit les indices BOM **à une origine donnée, sans regarder le futur**.
 
@@ -161,12 +186,12 @@ def make_bom_deriver(panel_full: pd.DataFrame | None = None, assumptions: dict |
             if not parts:
                 continue
             total = sum(p[3] for p in parts)
-            idx = 0.0
-            for _, s_, _, val, pb in parts:
-                v = values_df[s_].copy()
-                v.loc[:origin] = v.loc[:origin].ffill()
-                idx = idx + val / total * v / pb
-            out[TARGET_IDS[prod]] = 100 * idx
+            w_ = pd.Series({s_: val / total for _, s_, _, val, _ in parts})
+            v = pd.DataFrame({s_: values_df[s_] for _, s_, _, _, _ in parts}, index=values_df.index)
+            v.loc[:origin] = v.loc[:origin].ffill()
+            pb = pd.Series({s_: b for _, s_, _, _, b in parts})
+            idx = 100 * (v / pb).mul(w_).sum(axis=1, min_count=len(w_))   # full basket only (NaN otherwise)
+            out[TARGET_IDS[prod]] = _chain_back(idx, v, w_, origin)
         return pd.DataFrame(out, index=values_df.index)
 
     def weights_at(bases_df: pd.DataFrame, origin) -> pd.DataFrame:

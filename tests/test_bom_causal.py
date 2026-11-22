@@ -80,3 +80,18 @@ def test_index_priced_materials_use_config_level(toy):
     w = der.weights_at(p, p.index[60]).set_index(["product", "material"])
     assert w.loc[("RM6", "plastics"), "eur_per_kg"] == 2.5
     assert w.loc[("RM6", "electronics"), "value"] == 50.0
+
+
+def test_history_uses_available_components_but_truth_needs_all(toy):
+    p, a = toy
+    p = p.copy()
+    p.loc[: p.index[49], "L02"] = np.nan                 # stainless starts late
+    der = tg.make_bom_deriver(p, a)
+    o = p.index[80]
+    hist = der(p.loc[:o], p.loc[:o], o)["RM6_NE_IQI_433520"]
+    assert hist.loc[p.index[30]:].notna().all()         # history before stainless starts is still defined
+    assert hist.loc[o] == pytest.approx(100.0)
+    q = p.copy()
+    q.loc[p.index[90], "L02"] = np.nan                   # a component missing at a target month
+    truth = der(q, q.loc[:o], o)["RM6_NE_IQI_433520"]
+    assert np.isnan(truth.loc[p.index[90]])              # never score a truth built from a partial basket
