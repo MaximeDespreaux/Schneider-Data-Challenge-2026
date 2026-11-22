@@ -29,6 +29,10 @@ PRICE_LIKE_EXT = ["X_US_PPI_ALL", "X_US_PPI_CRUDE", "X_US_PPI_INTERMED", "X_US_P
                   "X_USD_BROAD", "X_IMF_METALS", "X_IMF_ALLCOMMOD"]
 LEVEL_EXT = ["X_VIX", "X_OVX", "X_GLOBAL_EPU", "X_GSCPI", "X_US_CAPUTIL", "X_US_BREAKEVEN", "X_US_10Y"]
 CROSS = ["S03", "S04", "S05", "D01", "D02", "ED01", "ED02", "E09", "E11", "E13"]
+# Option « champion v2 » : v1 + les autres séries énergie fournies (charbon, gaz US, GNL Japon, électricité FR/JP,
+# PPI énergie DE/FR, imports russes, indice énergie FMI). Le défaut reste CROSS (v1).
+CROSS_V2 = CROSS + ["E08", "E06", "E07", "ED03", "ED04", "E14", "E15", "E10", "E12", "ED05", "E20", "E21", "ED06",
+                    "E22"]
 TWIN = {"S07": "D01", "S08": "D02", "S09": "X_US_PPI_STEEL", "S10": "X_US_PPI_STEEL", "S11": "ED01", "S13": "E01"}
 
 
@@ -36,8 +40,34 @@ def _dlog(s: pd.Series, k: int) -> pd.Series:
     return np.log(s.where(s > 0)).diff(k)
 
 
-def make_features(info: pd.DataFrame, target: str) -> pd.DataFrame:
-    """Toutes les features candidates pour ``target``, indexées comme ``info`` (valeurs à t calculées sur ≤ t)."""
+# Extended set (champion_wf2): licensed market price vs index gap (Report 3's strongest signal: the EU index catches
+# up with coil prices), and regime-gated momentum / mean reversion.
+LIC_TWIN = {"S09": "L01", "S10": "L03", "S12": "L01", "RM6_NE_IQI_433520": "L01", "RMAirSeT_IIQ_24kV_IEC": "L01",
+            "L01": "S09", "L03": "S10", "L02": "S09"}
+
+
+def _extended(info: pd.DataFrame, target: str, ly: pd.Series) -> dict:
+    f = {}
+    twin = LIC_TWIN.get(target)
+    if twin and twin in info and info[twin].notna().any():
+        gap = ly - np.log(info[twin].where(info[twin] > 0)).reindex(ly.index)
+        f["lic_gap"] = gap
+        f["lic_gap_dev24"] = gap - gap.rolling(24, min_periods=18).mean()
+    d3 = ly.diff(3)
+    dev24 = ly - ly.rolling(24, min_periods=18).mean()
+    # "overextended" = |dev24| above its own 80th percentile over the past 10 years (causal, rolling)
+    hot = (dev24.abs() > dev24.abs().rolling(120, min_periods=60).quantile(0.8)).astype(float).where(dev24.notna())
+    f["mom_calm"] = d3 * (1 - hot)
+    f["dev_hot"] = dev24 * hot
+    return f
+
+
+def make_features(info: pd.DataFrame, target: str, cross=None, extended: bool = False) -> pd.DataFrame:
+    """Toutes les features candidates pour ``target``, indexées comme ``info`` (valeurs à t calculées sur ≤ t).
+
+    ``cross`` : liste des séries « cross_* » candidates (None -> CROSS, la v1). ``extended`` : ajoute l'écart
+    prix de marché sous licence / indice et les features de régime (champion_wf2)."""
+    cross = CROSS if cross is None else cross
     y = info[target]
     ly = np.log(y.where(y > 0))
     f = {
@@ -47,7 +77,7 @@ def make_features(info: pd.DataFrame, target: str) -> pd.DataFrame:
         "overext36": ly - ly.rolling(36, min_periods=24).max(),
         "vol_regime": ly.diff().rolling(3).std() / ly.diff().rolling(36, min_periods=24).std(),
     }
-    for c in CROSS:
+    for c in cross:
         if c in info and c != target:
             f[f"cross_{c}_d1"] = _dlog(info[c], 1)
             f[f"cross_{c}_d3"] = _dlog(info[c], 3)
@@ -79,4 +109,6 @@ def make_features(info: pd.DataFrame, target: str) -> pd.DataFrame:
     for c in ["X_CU_STOCKS", "X_AL_STOCKS"]:
         if c in info:
             f[c.lower().replace("x_", "") + "_d3"] = _dlog(info[c], 3)
+    if extended:
+        f.update(_extended(info, target, ly))
     return pd.DataFrame(f, index=info.index)

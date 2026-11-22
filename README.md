@@ -16,6 +16,14 @@ make lab       # launches JupyterLab
 
 Run any command inside the environment with `uv run <cmd>`, or activate it with `source .venv/bin/activate`.
 
+Full setup and data layout: [docs/SETUP.md](docs/SETUP.md)
+
+```bash
+make data-check   # check data/raw/ and config/assumptions.yaml are in place
+make all          # data-check -> fetch -> test -> champion -> business
+make help         # list all targets
+```
+
 ## Project layout
 
 ```
@@ -38,6 +46,16 @@ Place the challenge files in `data/`. Its contents are gitignored — only the f
 
 Add a package with `uv add <pkg>` (or `uv add --dev <pkg>` for dev tools).
 
+## Business modules
+
+Goal A pricing levers, Goal B and decarbonisation analyses (`src/business/`, settings in `config/business.yaml`):
+
+```bash
+uv run python -m src.business.run_all
+```
+
+Outputs (confidential, gitignored) go to `data/outputs/business/`, with a summary in `REPORT.md`. See `docs/business.md`.
+
 ## Git hooks
 
 `make install` (or `make hooks`) enables the hooks in `.githooks/`. The `pre-commit` hook blocks commits on `main` that modify config files (`pyproject.toml`, `uv.lock`, `Makefile`, `.gitignore`, `.python-version`, `.githooks/*`) — make those changes on a branch instead.
@@ -52,3 +70,14 @@ Add a package with `uv add <pkg>` (or `uv add --dev <pkg>` for dev tools).
 | `lab`        | Launch JupyterLab                             |
 | `clean`      | Remove caches and notebook checkpoints        |
 | `clean-venv` | Remove the virtual environment                |
+| `data-check` | Check data files and local config are in place |
+| `fetch`      | Download public data into `data/raw/external/` |
+| `test`       | Run the unit tests (synthetic data only)       |
+| `verify`     | Local checks on real data (data fixes, drivers)|
+| `backtest`   | Full baseline backtest (slow)                  |
+| `champion`   | Champion v1 + draft submission CSV             |
+| `champion-v2`| Champion v2 option (files suffixed `_v2`)      |
+| `compare`    | Champion v1 vs v2 + provided-series table      |
+| `business`   | Business modules + `REPORT.md`                 |
+| `submission` | Alias of `champion`                            |
+| `all`        | data-check, fetch, test, champion, business    |

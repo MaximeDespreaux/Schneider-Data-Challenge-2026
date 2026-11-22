@@ -1,0 +1,82 @@
+seed: 42
+origin_month: "2026-09"
+horizons: [3, 6, 9]
+products: [RM6, AirSeT]
+
+forecast_source:
+  prefer: champion_wf       # submitted model from the newest graded run (data/outputs/backtest/graded/*/submission); or: champion (old holdout)
+  fallback_model: naive_vol # otherwise one single-origin run of NaiveVolScaled (cheap)
+
+pricing:
+  airset_price_fallback_premium: 0.20   # used only if pricing.airset_selling_price_eur is null in assumptions.yaml
+  cost_basis_default: bom_value         # bom_value = priced BOM materials (bottom-up) | material_share = share of selling price (top-down)
+
+shock_table:
+  shocks_pct: [-20, -10, 10, 20, 30]
+  materials: [copper, carbon_steel, stainless_steel, galvanised_steel, aluminium, epoxy, plastics, brass, electronics]
+  combos:
+    all_steel: [carbon_steel, stainless_steel, galvanised_steel]
+    all_metals: [copper, carbon_steel, stainless_steel, galvanised_steel, aluminium, brass]
+
+lag_analysis:
+  max_lag: 6
+  pairs:                       # market price (x) -> slower price (y)
+    - {name: copper_LME_to_EU_copper_PPI,       x: D01, y: S07}
+    - {name: aluminium_LME_to_EU_aluminium_PPI, x: D02, y: S08}
+    - {name: MEPS_CR_coil_to_EU_steel_PPI,      x: L01, y: S09}
+    - {name: MEPS_HDG_to_DE_steel_PPI,          x: L03, y: S10}
+    - {name: nickel_LME_to_CRU_stainless_304,   x: S03, y: L02}
+  epoxy_ingredients: ["EPX_BENZENE", "EPX_ACETONE", "EPX_ECH"]
+
+electronics_slider:
+  eur_per_box:
+    RM6: [20, 50, 150]
+    AirSeT: [100, 300, 800]
+
+competitor_lever:
+  priced_groups: {copper: D01, carbon_steel: L01, aluminium: D02, epoxy: EP01, plastics: S11, brass: [D01, S05]}
+  brass_mix: {copper: 0.63, zinc: 0.37}
+  plastics_eur_per_kg: 2.50
+  exclude_brands_if_broken: true
+  band_scenario: p90          # scenario whose gap sets the band and pass-through (p90 = risk scenario; naive p50 = no change)
+
+tco:
+  n_draws: 10000
+  lifetime_yrs: {choices: [30, 35, 40], source: "ABB SafeRing manual (>30 yrs); Schneider RM AirSeT press release (40 yrs)"}
+  sf6_charge_kg: {low: 1.2, high: 3.24, source: "competitor teardowns (1.2-2.5 kg); ABB SafeRing manual (3.24 kg)"}
+  leak_rate_pct_yr: {low: 0.05, high: 0.10, source: "IEC 62271-1 sealed systems < 0.1 %/yr (T&D Europe FAQ)"}
+  eol_loss_pct: {low: 1.0, high: 5.0, source: "ASSUMPTION - source to find"}
+  gwp_sf6: {value: 24300, source: "IPCC AR6 via GHG Protocol"}
+  carbon_price_eur_t: {choices: [0, 50, 90, 126], labels: [unregulated, internal_price, EU_ETS_now, EU_ETS_2030], source: "EU ETS ~90 EUR/t Nov 2026; 126 EUR/t 2030 consensus (GMK Center)"}
+  discount_rate: {low: 0.05, high: 0.08, source: "ASSUMPTION"}
+  airset_premium_pct: {low: 0.10, high: 0.30, source: "ASSUMPTION - to confirm with Schneider"}
+  maint_rm6_eur_yr: {low: 150, high: 300, source: "ASSUMPTION"}
+  maint_airset_reduction: {value: 0.40, source: "Schneider EcoCare: up to -40% maintenance costs"}
+  sf6_admin_eur_yr: {low: 20, high: 80, source: "ASSUMPTION; certified handling required (UK gov guidance)"}
+  eol_sf6_recovery_eur: {low: 200, high: 800, source: "ASSUMPTION"}
+
+suppliers:
+  n_peers: 400
+  peer_seed: 7
+  k_neighbours: 15
+  share_peers_reporting_scope3: 0.40
+  grid_kg_per_kwh: {FR: 0.041, GB: 0.177, DE: 0.330, PL: 0.589, AT: 0.110}   # Ember / DEFRA order of magnitude
+  gas_kg_per_kwh: 0.184
+  sectors:   # kWh per EUR revenue (elec, gas); purchased goods share of revenue; upstream kgCO2e per EUR purchased; spend-based total factor kgCO2e per EUR
+    copper_products:      {elec: [0.25, 0.60], gas: [0.30, 0.80], purchased_share: [0.70, 0.85], upstream_kg_per_eur: [1.2, 2.0], spend_factor: 1.10}
+    fabricated_metal:     {elec: [0.10, 0.25], gas: [0.10, 0.35], purchased_share: [0.45, 0.60], upstream_kg_per_eur: [0.6, 1.0], spend_factor: 0.45}
+    electrical_equipment: {elec: [0.05, 0.15], gas: [0.03, 0.12], purchased_share: [0.45, 0.60], upstream_kg_per_eur: [0.4, 0.7], spend_factor: 0.40}
+    electrical_services:  {elec: [0.01, 0.04], gas: [0.01, 0.05], purchased_share: [0.25, 0.40], upstream_kg_per_eur: [0.2, 0.4], spend_factor: 0.20}
+  # Team judgements the PitchBook files do not contain (they only hold financials). Revenue is NOT typed here:
+  # it is parsed from the raw PitchBook files in data/raw/suppliers/ (see Task 8).
+  revenue_proxy_asset_turnover: 1.2     # ASSUMPTION, used only when a file has no revenue at all (revenue = total assets x 1.2)
+  companies:   # file_keyword = text that appears in the PitchBook file name
+    - {file_keyword: REDACTED,              name: REDACTED,               country: FR, country_status: confirmed,  sector: copper_products,      sector_status: confirmed}
+    - {file_keyword: REDACTED,  name: REDACTED,   country: GB, country_status: confirmed,  sector: fabricated_metal,     sector_status: to confirm}
+    - {file_keyword: REDACTED,                         name: REDACTED,                          country: PL, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
+    - {file_keyword: REDACTED,           name: REDACTED, country: FR, country_status: confirmed,  sector: electrical_services,  sector_status: confirmed}
+    - {file_keyword: REDACTED,                      name: REDACTED,                       country: FR, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
+    - {file_keyword: REDACTED,                         name: REDACTED,                          country: AT, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
+    - {file_keyword: REDACTED,                 name: REDACTED,                  country: FR, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
+    - {file_keyword: REDACTED,             name: REDACTED,            country: DE, country_status: to confirm, sector: fabricated_metal,     sector_status: to confirm}
+    - {file_keyword: REDACTED,                    name: REDACTED,                     country: FR, country_status: to confirm, sector: electrical_services,  sector_status: to confirm}
