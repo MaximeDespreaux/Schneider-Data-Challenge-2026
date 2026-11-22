@@ -107,12 +107,37 @@ uv run python -m src.external.fetch_public --only eurostat   # or fred | gscpi |
 uv run python -m src.external.fetch_public --force           # download again even if the files exist
 ```
 
+## Driver model (DriverRidge)
+
+`src/testbench/driver_models.py` predicts each series from its own recent moves plus "market drivers" (`DRIVERS`),
+and lets some indices catch up with a market twin (`MARKET_TWIN`). It now uses the new series. DriverRidge is not part
+of `baseline_models()` or of the champion; `verify_drivers` only checks that it runs (official comparison: the
+holdout selection 2020-23 → 2024-26).
+
+Added entries:
+- `L01` (MEPS carbon steel) ← `S04` iron ore, `ED02` gas, `E13` EU utilities: steel cost follows ore and energy.
+- `L03` (MEPS galvanised) ← `S04`, `S05` zinc, `ED02`, `E13`: same as carbon steel plus the zinc coating.
+- `L02` (CRU stainless 304) ← `S03` nickel, `ED02`, `E13`: the alloy surcharge follows nickel.
+- `EP01` (epoxy) ← `ED01` Brent, `ED02` gas: epoxy is made from oil- and gas-based chemicals (benzene).
+- `EL01` (electronics PPI) ← `D01` copper, `E13` utilities: boards use copper and energy.
+
+Updated entries:
+- `S09` (Eurostat steel) now also uses `L01`, and `S10` (German steel) now also uses `L03`: the Eurostat producer
+  price follows the MEPS market price about a month later.
+- `RM6_NE_IQI_433520` ← `D01`, `L01`, `S05`, `ED02`, `E13` and `RMAirSeT_IIQ_24kV_IEC` ← `L01`, `L02`, `D01`, `ED02`,
+  `E13`: both BOM indices now include copper, because the v2 BOM lists copper in AirSeT too; steel enters through the
+  MEPS/CRU prices.
+
+`MARKET_TWIN` additions: `S09` → `L01` and `S10` → `L03` (the Eurostat steel index catching up with the MEPS market
+price), next to the existing `S07` → `D01` and `S08` → `D02`.
+
 ## Commands
 
 ```bash
 uv run python -m src.external.fetch_public   # public data: FRED, NY Fed GSCPI, Eurostat (incl. EL01-EL03)
 uv run pytest -q                              # unit tests, synthetic data only (run in CI)
 uv run python -m src.checks.verify_fixes      # local checks on the real data + one short backtest
+uv run python -m src.checks.verify_drivers    # sanity check of DriverRidge on the new series (not model selection)
 ```
 
 `verify_fixes` needs the files in `data/raw/` and a filled `config/assumptions.yaml` (copy
