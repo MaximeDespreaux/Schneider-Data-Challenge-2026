@@ -13,6 +13,8 @@ dependencies = [
     "seaborn",
     "xgboost",
     "lightgbm",
+    "openpyxl>=3.1.5",
+    "statsmodels>=0.15.0",
 ]
 
 [dependency-groups]
