@@ -57,11 +57,13 @@ def load_assumptions(path: Path = CONFIG) -> dict:
     return a
 
 
-def _series_for(a: dict, key: str) -> str:
-    """Série de prix d'une matière ; acier sur indices Eurostat si ``steel_price_source: eurostat``."""
+def _series_for(a: dict, key: str, product: str | None = None) -> str:
+    """Série de prix d'une matière ; acier sur indices Eurostat si ``steel_price_source: eurostat``.
+    ``material_series_by_product`` permet un indice régional par usine (ex. L01_FR)."""
     if a.get("steel_price_source") == "eurostat" and key in STEELS:
         return a["material_series_eurostat"][key]["series"]
-    return a["material_series"][key]["series"]
+    override = ((a.get("material_series_by_product") or {}).get(product) or {}).get(key)
+    return override or a["material_series"][key]["series"]
 
 
 def bom_weights(assumptions: dict | None = None) -> pd.DataFrame:
@@ -74,7 +76,7 @@ def bom_weights(assumptions: dict | None = None) -> pd.DataFrame:
         if key is None:
             continue
         eur_kg = float(a["eur_per_kg_at_base"][key]["value"])
-        series = _series_for(a, key)
+        series = _series_for(a, key, r["product"])
         rows.append({"product": r["product"], "material": key, "series": series, "kg": r["mass_kg"],
                      "eur_per_kg": eur_kg, "value_eur": r["mass_kg"] * eur_kg})
     extras = a.get("extras") or {}
@@ -117,63 +119,69 @@ def last_valid_at(s: pd.Series, month) -> float:
 DIRECT_EUR_T = {"D01", "D02", "L01", "L02", "L03", "EP01", "BR01"}  # séries déjà en EUR/t ; les autres sont des indices sans unité de prix
 
 
-def make_bom_deriver(panel_full: pd.DataFrame, assumptions: dict | None = None):
+def make_bom_deriver(panel_full: pd.DataFrame | None = None, assumptions: dict | None = None):
     """Fabrique la fonction qui construit les indices BOM **à une origine donnée, sans regarder le futur**.
 
-    À l'origine t, pour chaque matière i :
-      - prix de référence p_i(t) en EUR/kg = valeur connue la plus récente (≤ t) :
-          * cuivre / alu (D01, D02) : directement le prix EUR/t ÷ 1000 ;
-          * acier / plastiques (indices) : k_i × indice_i(t), avec k_i = EUR/kg d'ancrage ÷ indice au mois d'ancrage.
-            k_i est une CONSTANTE de calibrage de niveau (hypothèse, comme les EUR/kg du fichier d'hypothèses),
-            pas une donnée de prévision : elle fixe le niveau absolu, pas les variations.
-      - poids_i(t) = kg_i × p_i(t) / Σ_j kg_j × p_j(t)   (connus à t)
-      - indice(s) = 100 × Σ_i poids_i(t) × P_i(s) / P_i(base_i(t))   où base_i(t) = dernière date connue de i
-    => indice = 100 au mois d'origine, comme dans le CSV (« index (origin = 100) »).
+    À l'origine t, pour chaque matière i (pondération en coût = prix × masse, recommandée par Schneider) :
+      - valeur_i(t) en EUR par boîte = kg_i × prix connu le plus récent (≤ t) en EUR/kg pour les séries en EUR/t
+        (cuivre, alu, acier MEPS/CRU, epoxy, laiton) ; pour les matières suivies par un indice sans niveau
+        (plastiques S11, électronique EL01) : kg_i × EUR/kg de config/assumptions.yaml (hypothèse de niveau, la
+        même à toute origine : aucune valeur du panel postérieure à t n'entre dans les poids) ;
+      - une matière dont la série n'a encore aucune valeur à t est exclue et les poids sont renormalisés ;
+      - indice(s) = 100 × Σ_i poids_i(t) × P_i(s) / P_i(t), chaque P_i prolongé par sa dernière valeur connue
+        jusqu'à t (bord irrégulier, ex. inox publié avec un mois de retard) => indice = 100 au mois d'origine.
 
-    Retourne derive(values_df, bases_df, origin) -> DataFrame (une colonne par produit).
-      - bases_df : ce qui est connu à l'origine (sert à fixer les poids et les bases) ;
-      - values_df: les valeurs à indexer (l'info tronquée pour l'historique, le panel complet pour la vérité).
+    ``panel_full`` sert seulement à vérifier que les séries existent (et à retomber sur la série par défaut si
+    une série régionale manque). Retourne derive(values_df, bases_df, origin) -> DataFrame (une colonne par produit).
     """
     a = load_assumptions() if assumptions is None else assumptions
-    anchor_month = pd.Timestamp(a["cost_index"]["base_month"] + "-01")
     w = bom_weights(a)
-    _check_series(panel_full, w["series"].unique())
-    k = {}
-    for r in w.itertuples():
-        if r.series not in DIRECT_EUR_T:
-            k[r.material] = r.eur_per_kg / last_valid_at(panel_full[r.series], anchor_month)
+    if panel_full is not None:
+        for i, r in w.iterrows():  # série régionale absente (ex. acier sous licence désactivé) -> série par défaut
+            if r.series not in panel_full or panel_full[r.series].isna().all():
+                w.at[i, "series"] = _series_for(a, r.material)
+        _check_series(panel_full, w["series"].unique())
+
+    def _parts(bases_df: pd.DataFrame, origin: pd.Timestamp, g: pd.DataFrame) -> list[tuple]:
+        parts = []
+        for r in g.itertuples():
+            known = bases_df[r.series].loc[:origin].dropna() if r.series in bases_df else pd.Series(dtype=float)
+            if known.empty:
+                continue
+            pb = float(known.iloc[-1])
+            eur_kg = pb / 1000.0 if r.series in DIRECT_EUR_T else float(r.eur_per_kg)
+            parts.append((r.material, r.series, eur_kg, r.kg * eur_kg, pb))
+        return parts
 
     def derive(values_df: pd.DataFrame, bases_df: pd.DataFrame, origin) -> pd.DataFrame:
         origin = pd.Timestamp(origin)
         out = {}
         for prod, g in w.groupby("product"):
-            parts, total = [], 0.0
-            for r in g.itertuples():
-                known = bases_df[r.series].loc[:origin].dropna()
-                if known.empty:
-                    break
-                pb = float(known.iloc[-1])
-                eur_kg = pb / 1000.0 if r.series in DIRECT_EUR_T else k[r.material] * pb
-                val = r.kg * eur_kg
-                parts.append((val, r.series, pb))
-                total += val
-            else:
-                out[TARGET_IDS[prod]] = 100 * sum(v / total * values_df[s] / pb for v, s, pb in parts)
+            parts = _parts(bases_df, origin, g)
+            if not parts:
+                continue
+            total = sum(p[3] for p in parts)
+            idx = 0.0
+            for _, s_, _, val, pb in parts:
+                v = values_df[s_].copy()
+                v.loc[:origin] = v.loc[:origin].ffill()
+                idx = idx + val / total * v / pb
+            out[TARGET_IDS[prod]] = 100 * idx
         return pd.DataFrame(out, index=values_df.index)
 
     def weights_at(bases_df: pd.DataFrame, origin) -> pd.DataFrame:
-        """Poids en valeur de chaque matière connus à l'origine (pour les analyses de la partie 4)."""
+        """Poids en coût de chaque matière connus à l'origine (pour la marge à risque / partie 4)."""
         origin = pd.Timestamp(origin)
         rows = []
-        for r in w.itertuples():
-            pb = float(bases_df[r.series].loc[:origin].dropna().iloc[-1])
-            eur_kg = pb / 1000.0 if r.series in DIRECT_EUR_T else k[r.material] * pb
-            rows.append({"product": r.product, "material": r.material, "series": r.series, "value": r.kg * eur_kg})
+        for prod, g in w.groupby("product"):
+            for mat, s_, eur_kg, val, _ in _parts(bases_df, origin, g):
+                rows.append({"product": prod, "material": mat, "series": s_, "eur_per_kg": eur_kg, "value": val})
         df = pd.DataFrame(rows)
         df["weight"] = df["value"] / df.groupby("product")["value"].transform("sum")
         return df
 
     derive.weights_at = weights_at
+    derive.weights = w
     return derive
 
 

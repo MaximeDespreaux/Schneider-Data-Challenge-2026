@@ -52,3 +52,10 @@ def test_build_full_panel(lic):
     assert ("L01" in p.columns) == lic and ("EP01" in p and "BR01" in p)
     assert "EPX_ECH" in p and p.index.min() == pd.Timestamp("1992-01-01")
     assert p.index.is_unique and p.index.is_monotonic_increasing
+
+
+@needs_data
+def test_brass_proxy_extended_with_its_inputs():
+    from src.testbench.panel import build_full_panel
+    p = build_full_panel(use_licensed=False)
+    assert p["BR01"].first_valid_index() <= pd.Timestamp("2000-01-01")

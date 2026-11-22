@@ -123,6 +123,8 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
     before = out.index < panel.index.min()
     out.loc[before, "D01"] = out.loc[before, "S01"] / out.loc[before, "S06"]
     out.loc[before, "D02"] = out.loc[before, "S02"] / out.loc[before, "S06"]
+    if "BR01" in out:  # laiton dérivé : même formule que panel.base_panel
+        out.loc[before, "BR01"] = 0.63 * out.loc[before, "D01"] + 0.37 * out.loc[before, "S05"] / out.loc[before, "S06"]
     if "ED01" in out:
         out.loc[before, "ED01"] = out.loc[before, "E01"] / out.loc[before, "S06"]
     if "ED02" in out:

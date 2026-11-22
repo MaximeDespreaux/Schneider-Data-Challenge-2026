@@ -45,6 +45,11 @@ material_series_eurostat:           # used only if steel_price_source = eurostat
   stainless_steel:  {series: S09}
   galvanised_steel: {series: S10}
 
+# Regional price index per plant (Schneider: "take care of region index evolution"). Overrides material_series
+# for one product. Which product uses which regional index is under NDA (local config only).
+material_series_by_product:
+  RM6: {carbon_steel: L01_FR}
+
 # ---------------------------------------------------------------------
 # 3. BOM (bill of materials)
 # ---------------------------------------------------------------------
