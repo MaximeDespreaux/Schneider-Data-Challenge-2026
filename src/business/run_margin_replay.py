@@ -70,6 +70,47 @@ def base_forecasts(panel, der, cached: bool) -> pd.DataFrame:
     return fc
 
 
+POLICY_TEXT = {"spot": "fixed price on today's cost", "p50_model": "fixed price on the forecast median",
+               "p90_model": "fixed price on the forecast P90 (risk buffer)", "p90_hist": "fixed price on the historical P90",
+               "clause_3": "two-way index clause, +/-3% band", "clause_5": "two-way index clause, +/-5% band",
+               "clause_10": "two-way index clause, +/-10% band", "hedge_cu": "copper bought forward at quote (LME 3M)",
+               "hedge_cu_clause_5": "copper forward + two-way clause +/-5% on the rest"}
+
+
+def _table(df: pd.DataFrame) -> str:
+    return "```\n" + df.to_string() + "\n```"
+
+
+def write_report(res: pd.DataFrame, pk: pd.DataFrame, out=OUT):
+    """Plain-language summary for the slides (confidential output: data/outputs/margin/REPORT.md)."""
+    from pathlib import Path
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    lines = ["# Margin-protection replay", "",
+             "Every past month is a quote at a fixed price; materials are bought 3, 6 or 9 months later. A policy "
+             "breaches when the realised margin falls below the floor. The rule (lowest markup with breach rate "
+             "<= 5% and 5%-worst margin >= floor) is applied on the DEV window (origins 2010-2021) only.", "",
+             "## Decision map (rule on DEV, submitted model wf_blend)", ""]
+    m = pk[pk.model == "wf_blend"].pivot_table(index=["product", "horizon"], columns="material_share",
+                                                values="rule_pick_dev", aggfunc="first")
+    m.columns = [f"material share {c:.0%}" for c in m.columns]
+    lines += [_table(m.map(lambda x: f"{x} ({POLICY_TEXT.get(x, x)})")), ""]
+    for share in sorted(res.material_share.unique()):
+        t = res[(res.model == "wf_blend") & (res.material_share == share)]
+        lines += [f"## Policy scores, material share {share:.0%}", ""]
+        pv = t.pivot_table(index=["product", "horizon", "policy"], columns="window",
+                           values=["breach_rate", "mean_markup", "p5_margin", "revision_rate"])
+        lines += [_table(pv.round(3)), ""]
+    lines += ["## Value of the forecast for the buffer", "",
+              "Mean markup of a P90 buffer built from the walk-forward model vs from historical moves (same quotes).", ""]
+    b = res[res.policy.isin(["p90_model", "p90_hist"]) & (res.model == "wf_blend")]
+    lines += [_table(b.pivot_table(index=["product", "horizon", "material_share", "window"], columns="policy",
+                            values=["mean_markup", "breach_rate"]).round(3)), ""]
+    path = out / "REPORT.md"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--cached", action="store_true")
@@ -114,7 +155,7 @@ def main(argv=None):
     print(show.pivot_table(index=["product", "horizon", "policy"], columns="window",
                            values=["breach_rate", "mean_markup", "p5_margin"]).round(3).to_string())
     print(pk[pk.model == "wf_blend"].to_string(index=False))
-    print(f"-> {OUT}")
+    print(f"-> {write_report(res, pk)}")
     return res, pk
 
 

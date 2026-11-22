@@ -80,3 +80,16 @@ def test_build_quotes_from_backtest_rows():
     assert r["cu_ratio"] == pytest.approx(panel["D01"].iloc[9] / panel["D01"].iloc[6])
     assert r["cu_fwd_ratio"] == pytest.approx(np.exp(0.03))          # 3M spread scaled to h/3
     assert r["w_cu"] == 0.5
+
+
+def test_report_lists_decision_map_and_tables(tmp_path):
+    from src.business.run_margin_replay import write_report
+    res = pd.DataFrame({"policy": ["spot", "clause_10"] * 2, "breach_rate": [.1, 0, .05, 0], "p5_margin": [.02, .08, .05, .09],
+                        "mean_margin": [.1, .14, .12, .15], "mean_markup": [0, 0, 0, 0], "revision_rate": [0, .3, 0, .2],
+                        "mean_abs_revision": [0, .01, 0, .01], "n": 100, "product": "RM6", "model": "wf_blend",
+                        "material_share": 0.2, "horizon": 6, "window": ["dev", "dev", "graded", "graded"]})
+    pk = pd.DataFrame({"product": ["RM6"], "model": ["wf_blend"], "material_share": [0.2], "horizon": [6],
+                       "rule_pick_dev": ["clause_10"]})
+    path = write_report(res, pk, tmp_path)
+    txt = path.read_text(encoding="utf-8")
+    assert "clause_10" in txt and "Decision map" in txt and "graded" in txt
