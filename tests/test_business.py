@@ -210,7 +210,7 @@ def test_peers_deterministic_and_estimator_rules():
 def test_sf6_flags():
     td = pd.DataFrame({"brand": ["Eaton", "Eaton", "ABB", "ABB", "SGC"],
                        "group": ["copper", "carbon_steel", "copper", "sf6", "copper"],
-                       "mass_kg": [26.4, 73.8, 150.0, 1.2, 0.03], "broken": [False, False, False, False, True]})
+                       "mass_kg": [1.0, 2.0, 3.0, 0.5, 0.1], "broken": [False, False, False, False, True]})
     f = eaton.sf6_flags(td)
     assert f["Eaton"] is True
     assert f["ABB"] is False

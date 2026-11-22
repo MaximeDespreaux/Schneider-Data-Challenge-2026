@@ -20,7 +20,7 @@ def toy(monkeypatch):
     bom = pd.DataFrame({"product": ["RM6", "RM6", "RM6", "RM6", "AirSeT", "AirSeT"],
                         "material_family": ["Copper", "Carbon steel", "Stainless steel", "Plastic",
                                             "Carbon steel", "Copper"],
-                        "mass_kg": [40.0, 140.0, 55.0, 6.0, 340.0, 28.0], "implied_total_kg": 0})
+                        "mass_kg": [10.0, 50.0, 20.0, 2.0, 100.0, 5.0], "implied_total_kg": 100.0})  # fake masses
     monkeypatch.setattr(d, "load_bom", lambda *a, **k: bom)
     a = {"bom": {"version": "xlsx_v2", "rm6_big_unlabelled_share": 0.45},
          "cost_index": {"base_month": "2026-09"},
