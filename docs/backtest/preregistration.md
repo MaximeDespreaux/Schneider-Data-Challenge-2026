@@ -24,7 +24,7 @@ Written before the graded run. Committed and tagged together with the code that 
 - Meta settings:
   - trailing window 36 origin-months;
   - at least 12 realised rows, otherwise fall back to `naive`;
-  - `power` = 2, fixed a priori.
+  - `power` = 4, chosen on the dev window among {1, 2, 4} by the lowest pooled dev pinball loss (0.984, 0.981 and 0.978 of naive).
 - **Submitted model: `wf_blend`.** The others are reported next to it and never used to switch after grading.
 - Targets:
   - CSV: Schneider's 14 series and the two BOM indices.
