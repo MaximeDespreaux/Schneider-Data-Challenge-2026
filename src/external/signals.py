@@ -31,6 +31,8 @@ LONG_SOURCES = {
     "S07": ("eu", "S07"), "S08": ("eu", "S08"), "S09": ("eu", "S09"), "S10": ("eu", "S10"), "S11": ("eu", "S11"),
     "EL01": ("eu", "EL01"), "EL02": ("eu", "EL02"), "EL03": ("eu", "EL03"),
     "E01": ("fred", "POILBREUSDM"), "E05": ("fred", "PNGASEUUSDM"),
+    "E08": ("fred", "PCOALAUUSDM"), "E06": ("fred", "PNGASUSUSDM"), "E07": ("fred", "PNGASJPUSDM"),
+    "E22": ("fred", "PNRGINDEXM"), "E14": ("eu", "E14"), "E15": ("eu", "E15"),
 }
 
 EXTERNAL = {  # colonne FRED -> nom du signal
@@ -95,9 +97,10 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
     idx = pd.date_range(start, panel.index.max(), freq="MS")
     out = panel.reindex(idx)
     for col, (src, code) in LONG_SOURCES.items():
-        if col not in out:
+        src_df = f if src == "fred" else eu
+        if col not in out or code not in src_df:  # source not downloaded yet (run fetch_public)
             continue
-        longs = (f if src == "fred" else eu)[code].reindex(idx)
+        longs = src_df[code].reindex(idx)
         first = panel[col].first_valid_index()
         if first is None or pd.isna(longs.get(first)):
             continue
@@ -130,6 +133,11 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
         out.loc[before, "ED01"] = out.loc[before, "E01"] / out.loc[before, "S06"]
     if "ED02" in out:
         out.loc[before, "ED02"] = out.loc[before, "E05"] * 3.412 / out.loc[before, "S06"]
+    # GNL Japon et gaz US en EUR/MWh (USD/MMBtu × 3,412 / USD par EUR), seulement là où les entrées existent
+    if "ED03" in out and "E07" in out:
+        out.loc[before, "ED03"] = out.loc[before, "E07"] * 3.412 / out.loc[before, "S06"]
+    if "ED04" in out and "E06" in out:
+        out.loc[before, "ED04"] = out.loc[before, "E06"] * 3.412 / out.loc[before, "S06"]
     return out
 
 

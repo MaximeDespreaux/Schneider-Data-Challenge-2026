@@ -47,3 +47,27 @@ intermédiaires US), `scrap_spread3` (ferraille vs acier), structure à terme et
 - Les signaux sont surtout américains/mondiaux ; peu de séries chinoises gratuites et propres.
 - La structure à terme LME ne commence qu'en 2016 : trop courte pour être validée seule.
 - Sur les prix LME à 3 mois, la règle « ≥ 3 signaux » active des signaux faibles qui n'aident pas en 2024-26.
+
+## Champion v2 (option)
+La v1 reste le défaut et donne exactement les mêmes résultats (mêmes signaux candidats, mêmes colonnes du panel).
+La v2 est une **option** qui teste en plus les autres séries énergie fournies dans le challenge :
+- **Historique long** : `fetch_public` télécharge aussi charbon Australie, gaz US, GNL Japon et l'indice énergie
+  (FMI via FRED), et les indices de prix Eurostat de l'énergie (NACE D35) pour l'Allemagne et la France.
+  `signals.extend_history` prolonge ainsi E06, E07, E08, E22, E14, E15 dans le passé, et en dérive ED03 / ED04
+  (USD/MMBtu × 3,412 / USD par EUR) avant le début du panel. Les colonnes de la v1 ne changent pas.
+- **Candidats** : `features.CROSS_V2` = CROSS + E08, E06, E07, ED03, ED04, E14, E15, E10, E12, ED05, E20, E21, ED06,
+  E22. Même criblage (cibles < 2024, signe stable sur 2003-2012 et 2013-2023), même règle du modèle final.
+- `fetch_public` ne saute une source que si son fichier existe **et** contient toutes les séries configurées.
+- La vérification 2024-26 affiche aussi `driver_ridge` (pour information ; jamais utilisé dans le CSV de soumission).
+
+**Règle de décision fixée avant de voir les résultats** : adopter la v2 seulement si, sur les origines 2024-01 à
+2026-09, son rel_QL médian sur (série, horizon) est plus bas que celui de la v1 ET sa couverture médiane n'est pas
+inférieure à celle de la v1 moins 0,02. Sinon garder la v1.
+
+```
+uv run python -m src.external.fetch_public
+uv run python -m src.external.run_champion                    # v1 -> champion_holdout.parquet, ..._champion.csv
+uv run python -m src.external.run_champion --candidates v2    # v2 -> fichiers suffixés _v2
+uv run python -m src.checks.compare_champions                 # applique la règle : ADOPT V2 / KEEP V1
+uv run python -m src.checks.provided_series_table             # statut de chaque série fournie (utilisée ou non)
+```
