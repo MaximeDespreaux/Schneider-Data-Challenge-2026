@@ -29,7 +29,7 @@ from .meta import MetaConfig, meta_pass, pick_stability
 
 OUT = d.OUT / "backtest"
 BOM_IDS = ["RM6_NE_IQI_433520", "RMAirSeT_IIQ_24kV_IEC"]
-INTERNAL = ["L01", "L02", "L03", "EP01"]          # forecast and scored, never in the CSV
+INTERNAL = ["L01", "L02", "L03", "EP01", "EL01"]          # forecast and scored, never in the CSV
 CSV_TARGETS = d.SCHNEIDER_RM_TARGETS + BOM_IDS
 SUBMITTED = "wf_blend"
 

@@ -4,7 +4,7 @@ horizons: [3, 6, 9]
 products: [RM6, AirSeT]
 
 forecast_source:
-  prefer: champion          # use champion forecasts at the origin if data/outputs/external/champion_holdout.parquet has them
+  prefer: wf_blend          # submitted model from the newest graded run (data/outputs/backtest/graded/*/submission); or: champion
   fallback_model: naive_vol # otherwise one single-origin run of NaiveVolScaled (cheap)
 
 pricing:
