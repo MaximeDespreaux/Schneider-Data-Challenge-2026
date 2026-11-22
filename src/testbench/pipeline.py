@@ -3,12 +3,12 @@
     uv run python -m src.testbench.pipeline --dev                 # DEV window, both modes (default)
     uv run python -m src.testbench.pipeline --canaries            # leak canaries on real data -> report per commit
     uv run python -m src.testbench.pipeline --graded              # ONE graded run (tagged clean commit + canaries)
-    uv run python -m src.testbench.pipeline --submit              # CSV at origin 2026-09 from the graded run (wf_blend)
+    uv run python -m src.testbench.pipeline --submit              # CSV at origin 2026-09 from the graded run (SUBMITTED)
     options: --mode submission|realtime|both, --no-licensed
 
 Base pass: every candidate at every origin (2010-01 on, 1992-extended panel, causal BOM indices). Submission mode
 masks each input by its live ragged edge; realtime mode by the publication lags of config/availability.yaml.
-Meta pass (Strategy A): wf_best / wf_blend (submitted) / wf_median from realised rows only.
+Meta pass (Strategy A): wf_best / wf_blend / wf_median from realised rows only. Submitted model: candidates.SUBMITTED.
 Outputs (confidential, gitignored) in data/outputs/backtest/<dev | graded/<tag>>/<mode>/.
 """
 
@@ -31,7 +31,6 @@ OUT = d.OUT / "backtest"
 BOM_IDS = ["RM6_NE_IQI_433520", "RMAirSeT_IIQ_24kV_IEC"]
 INTERNAL = ["L01", "L02", "L03", "EP01", "EL01"]          # forecast and scored, never in the CSV
 CSV_TARGETS = d.SCHNEIDER_RM_TARGETS + BOM_IDS
-SUBMITTED = "wf_blend"
 
 
 def targets(panel: pd.DataFrame) -> list[str]:
@@ -183,7 +182,7 @@ def submit(cfg: dict, live: str) -> pd.DataFrame:
     mats = [s for s in d.SCHNEIDER_RM_TARGETS if s in set(fc.series)]
     region = {s: ("EU" if s in ["S07", "S08", "S09", "S10", "S11"] else "WW") for s in mats}
     unit = {s: cat.loc[s, "unit"] for s in mats}
-    name = f"{SUBMITTED} (walk-forward blend, tag {tag})"
+    name = f"{SUBMITTED} (walk-forward, tag {tag})"
     ai = "claude-code; public data: FRED/IMF/BLS, Eurostat, NY Fed GSCPI; licensed MEPS/CRU as inputs"
     a = from_forecasts(fc[fc.series.isin(mats)], o, cfg["team_id"], name, ai, region, unit)
     b = from_forecasts(fc[fc.series.isin(BOM_IDS)], o, cfg["team_id"], name, ai, {s: "EU" for s in BOM_IDS},
@@ -198,7 +197,7 @@ def submit(cfg: dict, live: str) -> pd.DataFrame:
     return sub
 
 
-from .candidates import SHORTLIST, candidate_models  # noqa: E402  (after the helpers, avoids an import cycle)
+from .candidates import SHORTLIST, SUBMITTED, candidate_models  # noqa: E402  (after the helpers, avoids an import cycle)
 
 if __name__ == "__main__":
     main()

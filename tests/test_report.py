@@ -2,11 +2,12 @@ import json
 
 import pandas as pd
 
+from src.testbench.candidates import SUBMITTED
 from src.testbench.report import verdicts, write_report
 
 
 def _tests(p_sub, p_rt):
-    mk = lambda p: pd.DataFrame({"model": ["wf_blend", "wf_blend"], "group": ["steel", "metals"], "horizon": [3, 3],  # noqa: E731
+    mk = lambda p: pd.DataFrame({"model": [SUBMITTED, SUBMITTED], "group": ["steel", "metals"], "horizon": [3, 3],  # noqa: E731
                                  "n_origins": [50, 50], "rel_QL": [0.8, 1.0], "rel_QL_lo": [0.7, 0.95],
                                  "rel_QL_hi": [0.9, 1.05], "p_better": [p, 0.5], "p_holm": [p, 1.0],
                                  "coverage": [0.8, 0.79], "kupiec_p": [0.5, 0.5]})

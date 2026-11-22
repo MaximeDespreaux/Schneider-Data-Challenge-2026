@@ -5,7 +5,7 @@
 
 Steps
 1. Walk-forward base pass on the two BOM cost indices (origins 2010-01 .. 2026-09, submission mode with the live
-   ragged edge, causal BOM weights), then the Strategy A meta pass (wf_blend = submitted model).
+   ragged edge, causal BOM weights), then the Strategy A meta pass; the submitted model is candidates.SUBMITTED.
 2. One quote per month and horizon: realised cost change of the basket, forecast P50/P90, historical P90 (naive),
    copper share and copper forward at the quote date.
 3. Policies scored on the DEV window (origins 2010-01..2021-12, targets < 2022-01) and, separately, on the
@@ -31,6 +31,7 @@ from src.testbench.driver_models import DriverRidge
 from src.testbench.meta import MetaConfig, meta_pass
 from src.testbench.models import (AR1Point, Conformal, DriftPoint, MeanReversionPoint, Naive, NaiveGaussian,
                                   NaiveVolScaled)
+from src.testbench.candidates import SUBMITTED
 from src.testbench.run import DEFAULT_TARGETS, bom_deriver
 from src.testbench.targets import TARGET_IDS, load_assumptions
 
@@ -58,7 +59,7 @@ def base_forecasts(panel, der, cached: bool) -> pd.DataFrame:
     """Forecasts of the two BOM indices at every origin: the newest graded run (all candidates + meta pass) when
     it exists, else a dedicated base pass (cached in data/outputs/margin/base_bom.parquet)."""
     from src.business.forecasts import source_path
-    graded = source_path("wf_blend")
+    graded = source_path(SUBMITTED)
     if graded.exists():
         fc = pd.read_parquet(graded)
         print(f"forecasts from the graded run: {graded}")
@@ -98,20 +99,20 @@ def write_report(res: pd.DataFrame, pk: pd.DataFrame, out=OUT):
              "Every past month is a quote at a fixed price; materials are bought 3, 6 or 9 months later. A policy "
              "breaches when the realised margin falls below the floor. The rule (lowest markup with breach rate "
              "<= 5% and 5%-worst margin >= floor) is applied on the DEV window (origins 2010-2021) only.", "",
-             "## Decision map (rule on DEV, submitted model wf_blend)", ""]
-    m = pk[pk.model == "wf_blend"].pivot_table(index=["product", "horizon"], columns="material_share",
+             f"## Decision map (rule on DEV, submitted model {SUBMITTED})", ""]
+    m = pk[pk.model == SUBMITTED].pivot_table(index=["product", "horizon"], columns="material_share",
                                                 values="rule_pick_dev", aggfunc="first")
     m.columns = [f"material share {c:.0%}" for c in m.columns]
     lines += [_table(m.map(lambda x: f"{x} ({POLICY_TEXT.get(x, x)})")), ""]
     for share in sorted(res.material_share.unique()):
-        t = res[(res.model == "wf_blend") & (res.material_share == share)]
+        t = res[(res.model == SUBMITTED) & (res.material_share == share)]
         lines += [f"## Policy scores, material share {share:.0%}", ""]
         pv = t.pivot_table(index=["product", "horizon", "policy"], columns="window",
                            values=["breach_rate", "mean_markup", "p5_margin", "revision_rate"])
         lines += [_table(pv.round(3)), ""]
     lines += ["## Value of the forecast for the buffer", "",
               "Mean markup of a P90 buffer built from the walk-forward model vs from historical moves (same quotes).", ""]
-    b = res[res.policy.isin(["p90_model", "p90_hist"]) & (res.model == "wf_blend")]
+    b = res[res.policy.isin(["p90_model", "p90_hist"]) & (res.model == SUBMITTED)]
     lines += [_table(b.pivot_table(index=["product", "horizon", "material_share", "window"], columns="policy",
                             values=["mean_markup", "breach_rate"]).round(3)), ""]
     path = out / "REPORT.md"
@@ -135,7 +136,7 @@ def main(argv=None):
 
     tables, picks = [], []
     for series, product in PRODUCT_OF.items():
-        for model in ("wf_blend", "naive_vol_hl3"):
+        for model in (SUBMITTED, "naive_vol_hl3"):
             q = build_quotes(fc, panel, series, model, w_cu)
             for share in SHARES:
                 eco = economics(a, product, share)
@@ -158,11 +159,11 @@ def main(argv=None):
     res.to_csv(OUT / "policy_scores.csv", index=False)
     pk = pd.DataFrame(picks)
     pk.to_csv(OUT / "policy_picks.csv", index=False)
-    show = res[(res.model == "wf_blend") & (res.material_share == SHARES[0])]
+    show = res[(res.model == SUBMITTED) & (res.material_share == SHARES[0])]
     pd.set_option("display.width", 200)
     print(show.pivot_table(index=["product", "horizon", "policy"], columns="window",
                            values=["breach_rate", "mean_markup", "p5_margin"]).round(3).to_string())
-    print(pk[pk.model == "wf_blend"].to_string(index=False))
+    print(pk[pk.model == SUBMITTED].to_string(index=False))
     print(f"-> {write_report(res, pk)}")
     return res, pk
 

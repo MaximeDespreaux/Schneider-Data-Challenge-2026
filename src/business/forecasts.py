@@ -34,9 +34,9 @@ def champion_path():
 
 
 def source_path(prefer: str):
-    """File holding the preferred model's forecasts: the newest graded run (submission mode) for ``wf_blend``,
-    the champion holdout otherwise."""
-    if prefer == "wf_blend":
+    """File holding the preferred model's forecasts: the newest graded run (submission mode) for any model of the
+    hardened backtest (``champion_wf``, ``wf_blend``...); the old champion holdout for ``champion``."""
+    if prefer != "champion":
         runs = sorted(GRADED.glob("*/submission/forecasts.parquet"), key=lambda p: p.stat().st_mtime)
         return runs[-1] if runs else GRADED / "missing" / "forecasts.parquet"
     return champion_path()
@@ -56,7 +56,7 @@ def cache_decision(cache, champ, origin: pd.Timestamp, prefer: str) -> tuple[boo
     naive_vol forecasts while usable champion forecasts now exist."""
     if not cache.exists():
         return False, "no cache"
-    if prefer in ("champion", "wf_blend") and champ.exists():
+    if champ.exists():
         if champ.stat().st_mtime > cache.stat().st_mtime:
             return False, f"{champ.name} is newer than the cache"
         cached = pd.read_parquet(cache, columns=["series", "source"])
@@ -94,16 +94,13 @@ def get_origin_forecasts(cfg: dict | None = None) -> pd.DataFrame:
 
     fc, source = None, None
     champ = source_path(prefer)
-    if prefer in ("champion", "wf_blend"):
-        fc = champion_rows(champ, origin, series, model=prefer)
-        if fc is not None:
-            source, why = prefer, f"{champ} has {prefer} forecasts for every series at {origin:%Y-%m}"
-        elif champ.exists():
-            why = f"{champ.name} lacks champion forecasts for some series at {origin:%Y-%m}"
-        else:
-            why = f"{champ.name} not found (run src.external.run_champion to create it)"
+    fc = champion_rows(champ, origin, series, model=prefer)
+    if fc is not None:
+        source, why = prefer, f"{champ} has {prefer} forecasts for every series at {origin:%Y-%m}"
+    elif champ.exists():
+        why = f"{champ.name} lacks {prefer} forecasts for some series at {origin:%Y-%m}"
     else:
-        why = f"forecast_source.prefer = {prefer}"
+        why = f"{champ} not found (run the graded backtest, or src.external.run_champion for 'champion')"
     if fc is None:
         if cfg["forecast_source"]["fallback_model"] != "naive_vol":
             raise ValueError(f"unknown fallback_model: {cfg['forecast_source']['fallback_model']}")

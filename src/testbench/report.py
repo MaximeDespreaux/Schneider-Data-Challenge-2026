@@ -1,6 +1,6 @@
 """Plain-language report of a backtest run (dev or graded), applying the pre-registered pass rule.
 
-Pass rule (docs/backtest/preregistration.md): wf_blend beats naive in a group x horizon only if the one-sided pooled
+Pass rule (docs/backtest/preregistration.md): the submitted model beats naive in a group x horizon only if the one-sided pooled
 DM test, Holm-adjusted, gives p < 0.05 in BOTH modes; otherwise "not detectable" with the minimum detectable effect.
 """
 
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
-SUBMITTED = "wf_blend"
+from .candidates import SUBMITTED
 ALPHA = 0.05
 
 
@@ -50,7 +50,7 @@ def write_report(run_dir: Path, canary_json: Path, mde: pd.DataFrame | None = No
     lines = ["# Backtest report", "",
              f"Run folder: `{run_dir.name}`. Leak canaries for commit {can['head'][:7]}: "
              f"{'PASS' if can['PASS'] else 'FAIL'} (dirty tree: {can['dirty']}).", "",
-             "## Submitted model (wf_blend) vs naive, pre-registered rule", "",
+             f"## Submitted model ({SUBMITTED}) vs naive, pre-registered rule", "",
              "rel_QL < 1 means a lower pinball loss than naive. CI = 95% block bootstrap. p = one-sided pooled DM, "
              "Holm-adjusted. 'beats naive' requires p < 0.05 in both modes.", "",
              _block(v.round(3)), ""]

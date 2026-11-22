@@ -7,6 +7,8 @@ from .models import (AR1Point, Conformal, DampedTrendETS, DriftPoint, MeanRevers
                      NaiveVolScaled)
 
 SHORTLIST = ("naive", "naive_vol_hl3", "ar1_conf", "driver_ridge", "champion_wf")
+# Submitted model (user decision 2026-11-22, before grading, on dev evidence): the walk-forward champion.
+SUBMITTED = "champion_wf"
 
 
 def candidate_models() -> list:

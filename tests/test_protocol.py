@@ -99,7 +99,8 @@ def test_graded_ignores_mode_and_report_needs_both_modes():
     from src.testbench.pipeline import graded_modes
     from src.testbench.report import verdicts
     assert graded_modes("submission") == ["submission", "realtime"]
-    t = pd.DataFrame({"model": ["wf_blend"], "group": ["steel"], "horizon": [3], "rel_QL": [.8], "rel_QL_lo": [.7],
+    from src.testbench.candidates import SUBMITTED
+    t = pd.DataFrame({"model": [SUBMITTED], "group": ["steel"], "horizon": [3], "rel_QL": [.8], "rel_QL_lo": [.7],
                       "rel_QL_hi": [.9], "p_holm": [.01], "coverage": [.8]})
     with pytest.raises(ValueError, match="both modes"):
         verdicts({"submission": t})

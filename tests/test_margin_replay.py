@@ -84,11 +84,12 @@ def test_build_quotes_from_backtest_rows():
 
 def test_report_lists_decision_map_and_tables(tmp_path):
     from src.business.run_margin_replay import write_report
+    from src.testbench.candidates import SUBMITTED
     res = pd.DataFrame({"policy": ["spot", "clause_10"] * 2, "breach_rate": [.1, 0, .05, 0], "p5_margin": [.02, .08, .05, .09],
                         "mean_margin": [.1, .14, .12, .15], "mean_markup": [0, 0, 0, 0], "revision_rate": [0, .3, 0, .2],
-                        "mean_abs_revision": [0, .01, 0, .01], "n": 100, "product": "RM6", "model": "wf_blend",
+                        "mean_abs_revision": [0, .01, 0, .01], "n": 100, "product": "RM6", "model": SUBMITTED,
                         "material_share": 0.2, "horizon": 6, "window": ["dev", "dev", "graded", "graded"]})
-    pk = pd.DataFrame({"product": ["RM6"], "model": ["wf_blend"], "material_share": [0.2], "horizon": [6],
+    pk = pd.DataFrame({"product": ["RM6"], "model": [SUBMITTED], "material_share": [0.2], "horizon": [6],
                        "rule_pick_dev": ["clause_10"]})
     path = write_report(res, pk, tmp_path)
     txt = path.read_text(encoding="utf-8")
