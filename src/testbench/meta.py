@@ -30,7 +30,7 @@ META_MODELS = ("wf_best", "wf_blend", "wf_median")
 class MetaConfig:
     window: int = 36
     min_rows: int = 12
-    power: float = 2.0
+    power: float = 4.0  # chosen on DEV among {1, 2, 4} (pre-registered rule: lowest pooled dev QL)
     shortlist: tuple[str, ...] = ()
     fallback: str = "naive"
 

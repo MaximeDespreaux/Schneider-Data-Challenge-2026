@@ -55,6 +55,14 @@ def economics(a: dict, product: str, share: float | None = None) -> Economics:
 
 
 def base_forecasts(panel, der, cached: bool) -> pd.DataFrame:
+    """Forecasts of the two BOM indices at every origin: the newest graded run (all candidates + meta pass) when
+    it exists, else a dedicated base pass (cached in data/outputs/margin/base_bom.parquet)."""
+    from src.business.forecasts import source_path
+    graded = source_path("wf_blend")
+    if graded.exists():
+        fc = pd.read_parquet(graded)
+        print(f"forecasts from the graded run: {graded}")
+        return fc[fc.series.isin(TARGET_IDS.values())]
     path = OUT / "base_bom.parquet"
     if cached and path.exists():
         return pd.read_parquet(path)
