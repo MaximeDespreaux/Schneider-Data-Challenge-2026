@@ -93,3 +93,23 @@ def test_report_lists_decision_map_and_tables(tmp_path):
     path = write_report(res, pk, tmp_path)
     txt = path.read_text(encoding="utf-8")
     assert "clause_10" in txt and "Decision map" in txt and "graded" in txt
+
+
+def test_copper_hedge_keeps_fx_risk():
+    # copper flat in USD, EUR strengthens 10% (USD per EUR up): EUR copper cost falls; a USD forward does not
+    # remove that FX move -> hedged copper cost ratio = fwd_usd * fx_t / fx_t+h
+    from src.business.margin_replay import build_quotes
+    idx = pd.date_range("2020-01-01", periods=24, freq="MS")
+    fx = pd.Series(1.0, index=idx); fx.iloc[9:] = 1.1
+    panel = pd.DataFrame({"D01": 100 / fx, "S06": fx, "X_CU_TERM": 0.0}, index=idx)
+    fc = pd.DataFrame([("wf_blend", "RM6_NE_IQI_433520", idx[6], 3, idx[9], idx[6], 3, 95.0, 100.0, 105.0, 100.0),
+                       ("naive", "RM6_NE_IQI_433520", idx[6], 3, idx[9], idx[6], 3, 95.0, 100.0, 105.0, 100.0)],
+                      columns=["model", "series", "origin", "horizon", "target_month", "last_obs", "step", "p10", "p50",
+                               "p90", "y_true"])
+    q = build_quotes(fc, panel, "RM6_NE_IQI_433520", "wf_blend", lambda s, o: 1.0)
+    assert q["cu_fwd_ratio"].iloc[0] == pytest.approx(1 / 1.1)
+
+
+def test_effective_markup_counts_revisions():
+    tab = summarize_policies(_q(np.array([1.2, 1.0]), n=2), ECO, policies={"clause_5": {"k": 0.05}})
+    assert tab.loc["clause_5", "mean_final_markup"] == pytest.approx(0.5 * 0.15 * 0.20 / 1.0)

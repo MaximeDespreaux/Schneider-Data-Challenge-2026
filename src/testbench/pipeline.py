@@ -39,9 +39,17 @@ def targets(panel: pd.DataFrame) -> list[str]:
 
 
 def lags_for(mode: str, panel: pd.DataFrame, tg: list[str], live_origin: str) -> dict[str, int]:
+    """Realtime: publication lags. Submission: the live ragged edge of every series except Schneider's CSV targets
+    (known up to the origin by convention); internal targets that are also inputs (L01-L03, EP01, EL01) keep
+    their live gap at every origin."""
     if mode == "realtime":
         return realtime_lags()
-    return ragged_edge_lags(panel, live_origin, exempt=set(tg))
+    return ragged_edge_lags(panel, live_origin, exempt=set(CSV_TARGETS))
+
+
+def graded_modes(requested: str | None = None) -> list[str]:
+    """The graded run always scores both modes: the pass rule needs both, and the tag can be graded only once."""
+    return ["submission", "realtime"]
 
 
 def stat_tables(scored: pd.DataFrame, mode: str, lags: dict[str, int]) -> pd.DataFrame:
@@ -61,7 +69,7 @@ def stat_tables(scored: pd.DataFrame, mode: str, lags: dict[str, int]) -> pd.Dat
                 b = sub[(sub.model == "naive") & (sub.horizon == h)]
                 if a.empty or b.empty:
                     continue
-                lo, pt, hi = stats.block_bootstrap_ci(sub, m, "naive", h, "rel_ql", n_boot=500)
+                lo, pt, hi = stats.block_bootstrap_ci(sub, m, "naive", h, "rel_ql", block=h + extra, n_boot=500)
                 no = stats.non_overlapping(a, h + extra)
                 kp = stats.kupiec_pof(~no["covered"].to_numpy(), 0.20)[1] if len(no) > 5 else np.nan
                 rows.append({"model": m, "group": g, "horizon": h, "n_origins": n, "rel_QL": a.ql.mean() / b.ql.mean(),
@@ -125,7 +133,7 @@ def main(argv=None):
     if args.graded:
         tag = protocol.assert_can_grade()
         origins = pd.date_range(protocol.DEV[0], protocol.GRADED[1], freq="MS")
-        for mode in modes:
+        for mode in graded_modes(args.mode):
             run_mode(panel, der, tg, candidate_models(), mode, origins, OUT / "graded" / tag / mode, live,
                      lambda s: s[s.origin >= protocol.PURGE])
         _report(OUT / "graded" / tag)

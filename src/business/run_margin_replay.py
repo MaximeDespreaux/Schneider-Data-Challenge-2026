@@ -66,7 +66,7 @@ def base_forecasts(panel, der, cached: bool) -> pd.DataFrame:
     path = OUT / "base_bom.parquet"
     if cached and path.exists():
         return pd.read_parquet(path)
-    exempt = set(DEFAULT_TARGETS) | {"L01", "L02", "L03", "L01_FR", "EP01", "BR01", "EL01"}
+    exempt = set(DEFAULT_TARGETS)  # Schneider's CSV targets; licensed/extra inputs keep their live gap
     edge = ragged_edge_lags(panel, "2026-09-01", exempt=exempt)
     fc = run_backtest(panel, list(TARGET_IDS.values()), candidates(),
                       origins=pd.date_range("2010-01-01", "2026-09-01", freq="MS"), derive=der, lags=edge, verbose=False)

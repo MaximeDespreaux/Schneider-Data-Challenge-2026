@@ -92,3 +92,25 @@ def test_submit_rejects_licensed_ids():
     with pytest.raises(ValueError, match="L01"):
         pr.assert_publishable_ids(["S09", "L01"])
     pr.assert_publishable_ids(["S09", "D01", "RM6_NE_IQI_433520"])
+
+
+def test_graded_ignores_mode_and_report_needs_both_modes():
+    import pandas as pd
+    from src.testbench.pipeline import graded_modes
+    from src.testbench.report import verdicts
+    assert graded_modes("submission") == ["submission", "realtime"]
+    t = pd.DataFrame({"model": ["wf_blend"], "group": ["steel"], "horizon": [3], "rel_QL": [.8], "rel_QL_lo": [.7],
+                      "rel_QL_hi": [.9], "p_holm": [.01], "coverage": [.8]})
+    with pytest.raises(ValueError, match="both modes"):
+        verdicts({"submission": t})
+
+
+def test_submission_lags_mirror_live_edge_of_internal_inputs():
+    import numpy as np
+    import pandas as pd
+    from src.testbench.pipeline import lags_for
+    idx = pd.date_range("2020-01-01", "2026-09-01", freq="MS")
+    p = pd.DataFrame({"S09": 1.0, "L02": 1.0}, index=idx)
+    p.loc[idx[-1], "L02"] = np.nan                      # licensed stainless one month behind at the live origin
+    lags = lags_for("submission", p, ["S09", "L02"], "2026-09-01")
+    assert lags.get("L02") == 1 and lags.get("S09", 0) == 0

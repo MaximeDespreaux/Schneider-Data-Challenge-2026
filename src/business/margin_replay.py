@@ -11,7 +11,8 @@ usable"). Every past month t is a quote for one box. The price is fixed at t; th
 
 C is the true change of the product's BOM cost basket over the offer (the backtest's ``y_true / 100``, weights
 fixed at t). All inputs of a policy at t are known at t: model quantiles come from the walk-forward backtest,
-``hist_p90`` from past h-month changes only, the copper forward from the LME 3-month/cash spread at t.
+``hist_p90`` from past h-month changes only, the copper forward from the LME 3-month/cash spread at t
+(a USD forward: the EUR/USD move over the offer stays with Schneider).
 
 Policies
 - spot        price on today's cost, no protection
@@ -98,6 +99,7 @@ def summarize_policies(q: pd.DataFrame, eco: Economics, policies: dict | None = 
         o = policy_outcomes(q, eco, _base_policy(name), **kw)
         rows[name] = {"n": len(o), "breach_rate": o["breach"].mean(), "p5_margin": o["margin"].quantile(0.05),
                       "mean_margin": o["margin"].mean(), "mean_markup": o["markup"].mean(),
+                      "mean_final_markup": (o["markup"] + o["price_change"]).mean(),
                       "revision_rate": (o["price_change"] != 0).mean(),
                       "mean_abs_revision": o["price_change"].abs().mean()}
     return pd.DataFrame(rows).T.astype(float)
@@ -127,13 +129,16 @@ def build_quotes(fc: pd.DataFrame, panel: pd.DataFrame, series: str, model: str,
     m = m.join(h, how="inner").reset_index()
     cu = panel["D01"]
     term = panel["X_CU_TERM"] if "X_CU_TERM" in panel else pd.Series(0.0, index=panel.index)
+    fx = panel["S06"] if "S06" in panel else pd.Series(1.0, index=panel.index)  # USD per EUR
     rows = []
     for r in m.itertuples():
         cu0 = cu.loc[:r.origin].dropna()
         cu_t = cu.get(r.target_month, np.nan)
         spread = term.loc[:r.origin].dropna()
+        fx0, fx_t = fx.loc[:r.origin].dropna(), fx.get(r.target_month, np.nan)
+        fx_move = float(fx0.iloc[-1]) / fx_t if len(fx0) and np.isfinite(fx_t) else 1.0  # USD forward keeps FX risk
         rows.append({"origin": r.origin, "horizon": r.horizon, "ratio": r.y_true / 100, "p50": r.p50 / 100,
                      "p90": r.p90 / 100, "hist_p90": r.hist / 100, "w_cu": float(w_cu(series, r.origin)),
                      "cu_ratio": cu_t / float(cu0.iloc[-1]) if len(cu0) else np.nan,
-                     "cu_fwd_ratio": float(np.exp(spread.iloc[-1] * r.horizon / 3)) if len(spread) else 1.0})
+                     "cu_fwd_ratio": (float(np.exp(spread.iloc[-1] * r.horizon / 3)) if len(spread) else 1.0) * fx_move})
     return pd.DataFrame(rows).dropna(subset=["ratio", "cu_ratio"])

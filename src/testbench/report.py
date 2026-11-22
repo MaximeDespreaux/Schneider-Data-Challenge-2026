@@ -16,6 +16,8 @@ ALPHA = 0.05
 
 
 def verdicts(tests: dict[str, pd.DataFrame], mde: pd.DataFrame | None = None, model: str = SUBMITTED) -> pd.DataFrame:
+    if set(tests) != {"submission", "realtime"}:
+        raise ValueError(f"the pass rule needs both modes (submission and realtime), got {sorted(tests)}")
     keys = ["group", "horizon"]
     parts = []
     for mode, t in tests.items():
