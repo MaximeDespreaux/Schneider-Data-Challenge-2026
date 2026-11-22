@@ -4,7 +4,7 @@ horizons: [3, 6, 9]
 products: [RM6, AirSeT]
 
 forecast_source:
-  prefer: champion_wf       # submitted model from the newest graded run (data/outputs/backtest/graded/*/submission); or: champion (old holdout)
+  prefer: champion_wf2      # submitted model from the newest graded run (data/outputs/backtest/graded/*/submission); or: champion (old holdout)
   fallback_model: naive_vol # otherwise one single-origin run of NaiveVolScaled (cheap)
 
 pricing:

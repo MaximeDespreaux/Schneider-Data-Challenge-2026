@@ -132,9 +132,11 @@ def main(argv=None):
     if args.graded:
         tag = protocol.assert_can_grade()
         origins = pd.date_range(protocol.DEV[0], protocol.GRADED[1], freq="MS")
-        for mode in graded_modes(args.mode):
-            run_mode(panel, der, tg, candidate_models(), mode, origins, OUT / "graded" / tag / mode, live,
-                     lambda s: s[s.origin >= protocol.PURGE])
+        from concurrent.futures import ProcessPoolExecutor
+        with ProcessPoolExecutor(max_workers=2) as ex:  # the two modes in parallel (at most 2 heavy runs)
+            jobs = [ex.submit(_graded_mode, mode, use_lic, live, tag, origins) for mode in graded_modes(args.mode)]
+            for j in jobs:
+                j.result()
         _report(OUT / "graded" / tag)
         print(f"graded run written to {OUT / 'graded' / tag}")
         return tag
@@ -143,6 +145,20 @@ def main(argv=None):
         run_mode(panel, der, tg, candidate_models(), mode, origins, OUT / "dev" / mode, live, protocol.dev_view)
     _report(OUT / "dev")
     print(f"dev run written to {OUT / 'dev'}")
+
+
+def _graded_only(scored: pd.DataFrame) -> pd.DataFrame:
+    return scored[scored.origin >= protocol.PURGE]
+
+
+def _graded_mode(mode, use_lic, live, tag, origins):
+    """One graded mode in its own process (rebuilds the panel: nothing shared between processes)."""
+    from src.external.signals import build_panel
+    from .run import bom_deriver
+    panel = build_panel(use_licensed=use_lic)
+    der = bom_deriver(panel)
+    run_mode(panel, der, targets(panel), candidate_models(), mode, origins, OUT / "graded" / tag / mode, live,
+             _graded_only)
 
 
 def _report(run_dir):
