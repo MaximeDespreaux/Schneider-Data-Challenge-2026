@@ -27,32 +27,39 @@ scenarios:
 # 2. Which price series represents each BOM material (the forecast targets)
 # ---------------------------------------------------------------------
 material_series:
-  carbon_steel:     {series: S09, unit: "index (2021=100)"}
-  stainless_steel:  {series: S09, unit: "index (2021=100)", helper_driver: S03}   # nickel
-  galvanised_steel: {series: S10, unit: "index (2021=100)", helper_driver: S05}   # zinc
+  carbon_steel:     {series: L01, unit: "EUR/t"}
+  stainless_steel:  {series: L02, unit: "EUR/t"}
+  galvanised_steel: {series: L03, unit: "EUR/t"}
   copper:           {series: D01, unit: "EUR/t"}
   aluminium:        {series: D02, unit: "EUR/t"}
+  brass:            {series: BR01, unit: "EUR/t"}
   plastics:         {series: S11, unit: "index (2021=100)"}   # PBT, PET, ETP
-  epoxy:            {series: EPOXY_RESIN_EUR_T, unit: "EUR/t", file: "Epoxy_for_student.xlsx", starts: "2018-01"}
-  electronics:      {series: EUROSTAT_PPI_C261, unit: "index (2021=100)", file: "to download",
-                     note: "Eurostat sts_inppd_m, NACE C26.1 'electronic components & boards' - same dataset as S07-S11; EU27 or HU (AirSeT plant)"}
+  epoxy:            {series: EP01, unit: "EUR/t"}
+  electronics:      {series: EL01, unit: "index (2021=100)"}
   status: CONFIRMED (except epoxy/electronics mapping = ASSUMED)
   source: "README section 3 'Which series for which BOM material'"
+
+steel_price_source: licensed        # licensed = MEPS/CRU (L01-L03, confirmed by Schneider) | eurostat = S09/S10 indices
+material_series_eurostat:           # used only if steel_price_source = eurostat
+  carbon_steel:     {series: S09}
+  stainless_steel:  {series: S09}
+  galvanised_steel: {series: S10}
 
 # ---------------------------------------------------------------------
 # 3. BOM (bill of materials)
 # ---------------------------------------------------------------------
 bom:
-  version: xlsx_v1                 # options: csv_v2 (DEPRECATED) | xlsx_v1 (official)
+  version: xlsx_v2                 # options: csv_v2 (DEPRECATED) | xlsx_v1 (previous) | xlsx_v2 (official)
   versions:
     csv_v2:  {file: "bom_materials.csv"}              # DEPRECATED
-    xlsx_v1: {file: "RM_Prices_XHEC_Challenge.xlsx"}  # official (top level of Data/)
-  status: CONFIRMED (team decision after Q&A 18/11 - csv_v2 deprecated; see data/Data/BOM_SOURCE_OF_TRUTH.md)
-  question_for_schneider: "Which BOM is correct? (answered: xlsx_v1)"
+    xlsx_v1: {file: "RM_Prices_XHEC_Challenge.xlsx"}  # previous official version, sensitivity only
+    xlsx_v2: {file: "RM_Prices_XHEC_Challenge_v1.xlsx"}
+  status: "CONFIRMED (Schneider sent the updated BOM ~20 Nov: RM_Prices_XHEC_Challenge_v1.xlsx)"
+  question_for_schneider: "Which BOM is correct? (answered: xlsx_v2 = RM_Prices_XHEC_Challenge_v1.xlsx, sent ~20 Nov)"
 
   # How we treat the parts of the BOM that have no label / no price
-  rm6_big_unlabelled_slice: carbon_steel   # BOM comment: "most likely carbon steel"
-  rm6_big_unlabelled_share: 0.45
+  rm6_big_unlabelled_slice: carbon_steel   # old BOM versions only (xlsx_v1, csv_v2); BOM comment: "most likely carbon steel"
+  rm6_big_unlabelled_share: 0.45           # old BOM versions only (xlsx_v1, csv_v2); v2 has an explicit carbon steel row
   other_and_small_unlabelled: keep_flat    # options: keep_flat | renormalise
   status_unlabelled: ASSUMED
   source_unlabelled: "README section 5 asks teams to state their rule; same rule for both products"
@@ -84,20 +91,21 @@ eur_per_kg_at_base:
                      source: "placeholder - no EUR/t plastics data provided; PET is cheaper, PBT/ETP dearer"}
   epoxy:            {value: null, status: CONFIRMED,
                      source: "Epoxy_for_student.xlsx at base month (challenge data) - FILL_LOCALLY"}
+  brass:            {value: null, status: DERIVED, source: "0.63 x copper D01 + 0.37 x zinc S05/S06 at base month - FILL_LOCALLY"}
 
 # ---------------------------------------------------------------------
 # 5. Materials NOT in the BOM (extras)
 # ---------------------------------------------------------------------
 extras:
   epoxy:
-    include: true
+    include: false                 # epoxy is now in the official BOM (v2); only set true with an old BOM version
     share_of_mass: 0.01            # carved out of 'Other' / unlabelled, NOT all of it
     range: [0.01, 0.03, 0.05]      # AirSeT uses solid insulation -> may be higher
     status: ASSUMED
     source: "Teardown benchmark (outside estimates) + Q&A 'insulation = epoxy'"
 
   electronics:
-    include: true
+    include: false                 # electronics is not in Schneider's BOM; kept out of the submitted BOM index. Used only as a separate slider in the business analysis (src/business).
     # Electronics are priced PER BOX in EUR, not per kg: they weigh almost nothing
     # but cost a lot per kg (teardown uses ~150 EUR/kg vs ~1 EUR/kg for steel).
     # Carved out of 'Other' / unlabelled like epoxy.
@@ -218,9 +226,7 @@ quote_rules:
 # 8. Open questions for Schneider (keep this list up to date)
 # ---------------------------------------------------------------------
 open_questions:
-  - "Which BOM version is correct (see versions above)?"
   - "Can you share 'RM AirSeT and RM6 Product and Cost Overview' (slide references [2], [3])?"
-  - "May we use the MEPS/CRU steel price file (kept out of GitHub)?"
   - "Typical margin, or material share of selling price, for RM6 and AirSeT?"
   - "Roughly what EUR of electronics/sensors are in a base RM6 and a base RM AirSeT?"
   - "How does sales segment customers (tiers / deal sizes) when deciding discounts?"

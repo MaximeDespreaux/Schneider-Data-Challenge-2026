@@ -107,10 +107,17 @@ X_CU_STOCKS: {provider: "LME file (challenge data)", formation: "monthly average
 X_AL_STOCKS: {provider: "LME file (challenge data)", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
 
 # --- CRU / MEPS (licensed)
-LIC_MEPS_CR_DE: {provider: "CRU / MEPS (licensed)", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED - input only, never in outputs or git"}
-LIC_MEPS_HDG_DE: {provider: "CRU / MEPS (licensed)", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED - input only, never in outputs or git"}
-LIC_MEPS_CR_FR: {provider: "CRU / MEPS (licensed)", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED - input only, never in outputs or git"}
-LIC_CRU_SS304_DE: {provider: "CRU / MEPS (licensed)", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED - input only, never in outputs or git"}
+L01: {provider: "MEPS (licensed) Germany CR coil", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED (use allowed by Schneider 2026-11-19) - never in git, CI logs or the submission CSV"}
+L02: {provider: "CRU (licensed) Germany 304 base+alloy", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED (use allowed by Schneider 2026-11-19) - never in git, CI logs or the submission CSV"}
+L03: {provider: "MEPS (licensed) Germany HDG coil", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED (use allowed by Schneider 2026-11-19) - never in git, CI logs or the submission CSV"}
+L01_FR: {provider: "MEPS (licensed) France CR coil", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED (use allowed by Schneider 2026-11-19) - never in git, CI logs or the submission CSV"}
+
+# --- Derived / extra series added by the business/data-fixes branch
+EP01: {provider: "Schneider epoxy file (resin, = EPX_RESIN)", formation: "monthly", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+BR01: {provider: "Derived brass proxy 0.63*D01 + 0.37*S05/S06", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+EL01: {provider: "Eurostat sts_inppd_m C26.1 EU27", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+EL02: {provider: "Eurostat sts_inppd_m C26.1 HU", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+EL03: {provider: "Eurostat sts_inppd_m C26.1 FR", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
 
 # --- Schneider epoxy file (challenge data)
 EPX_BENZENE: {provider: "Schneider epoxy file (challenge data)", formation: "monthly", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}

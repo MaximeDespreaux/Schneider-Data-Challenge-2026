@@ -14,6 +14,9 @@ Sorties (CONFIDENTIELLES, gitignorées) dans data/outputs/testbench/<mode>/ :
 from __future__ import annotations
 
 import argparse
+import warnings
+
+import pandas as pd
 
 from src import data as d
 
@@ -22,12 +25,12 @@ from .backtest import compute_footprint, default_origins, run_backtest
 from .models import baseline_models
 
 
-def build_panel(with_bom: bool = False):
-    """Panel matières + énergie. Les indices BOM ne sont PAS ajoutés ici par défaut : dans le backtest ils sont
-    reconstruits à chaque origine (``bom_deriver``) pour ne jamais utiliser des poids du futur."""
-    rm = d.load_rm_wide()
-    en = d.load_energy_wide()
-    panel = rm.join(en, how="left")
+def build_panel(with_bom: bool = False, use_licensed: bool = True):
+    """Panel matières + énergie + séries ajoutées (BR01, L01-L03, EP01, EL01-03), sans historique long ni signaux
+    externes. Délègue à ``panel.base_panel`` (constructeur unique). Les indices BOM ne sont PAS ajoutés par défaut :
+    dans le backtest ils sont reconstruits à chaque origine (``bom_deriver``)."""
+    from .panel import base_panel
+    panel = base_panel(use_licensed=use_licensed)
     if with_bom:
         from .targets import add_bom_indices
         panel, _ = add_bom_indices(panel)
@@ -39,18 +42,25 @@ def bom_deriver(panel):
     return make_bom_deriver(panel)
 
 
-DEFAULT_TARGETS = d.RM_TARGETS + ["RM6_NE_IQI_433520", "RMAirSeT_IIQ_24kV_IEC"]
+# constante rétro-compatible : les 14 séries de Schneider + les 2 indices BOM
+DEFAULT_TARGETS = d.SCHNEIDER_RM_TARGETS + ["RM6_NE_IQI_433520", "RMAirSeT_IIQ_24kV_IEC"]
+
+
+def default_targets(panel) -> list[str]:
+    """Cibles par défaut : seulement les séries présentes et non vides dans le panel, + les 2 indices BOM."""
+    return [s for s in d.RM_TARGETS if s in panel and panel[s].notna().any()] + ["RM6_NE_IQI_433520",
+                                                                                   "RMAirSeT_IIQ_24kV_IEC"]
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", default="submission", choices=["submission", "realtime"])
     ap.add_argument("--start", default="2020-01")
-    ap.add_argument("--targets", default=",".join(DEFAULT_TARGETS))
+    ap.add_argument("--targets", default=None)
     args = ap.parse_args(argv)
 
     panel = build_panel()
-    targets = args.targets.split(",")
+    targets = args.targets.split(",") if args.targets else default_targets(panel)
     models = baseline_models()
     print(f"Banc de test : {len(models)} modèles × {len(targets)} séries, mode={args.mode}, origines dès {args.start}")
     fc = run_backtest(panel, targets, models, origins=default_origins(panel, args.start), mode=args.mode,

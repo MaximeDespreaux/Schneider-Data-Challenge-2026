@@ -87,6 +87,7 @@ metrics.overview(table)
 | `ma12_conf` | retour vers la moyenne 12 mois, bandes conformal |
 
 ## Cibles
+Séries ajoutées (acier MEPS/CRU L01-L03, epoxy EP01, électronique EL01-EL03), BOM v2 et indice BOM : voir [data_fixes.md](data_fixes.md).
 Les 14 séries matières du panel (`src/data.py::RM_TARGETS`) + 2 indices de coût BOM (`src/testbench/targets.py`) :
 indice à quantités fixes, pondéré en valeur, reconstruit à chaque origine (base = origine = 100), BOM officielle
 `xlsx_v1` (`RM_Prices_XHEC_Challenge.xlsx` ; le CSV `bom_materials.csv` est obsolète). Paramètres lus dans
@@ -105,3 +106,5 @@ indice à quantités fixes, pondéré en valeur, reconstruit à chaque origine (
 
 ## Intégration continue
 `.github/workflows/tests.yml` lance `uv run pytest` à chaque push. Les tests n'utilisent que des données synthétiques.
+
+Modules métier (pricing objectif A, objectif B, décarbonation) : voir [business.md](business.md).

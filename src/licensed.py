@@ -1,10 +1,12 @@
-"""Licensed CRU / MEPS steel prices (inputs only, NEVER targets, NEVER written to outputs or git).
+"""Licensed CRU / MEPS steel prices (EUR/t). Forecast internally; NEVER in git, CI logs or the submission CSV.
 
 The workbook (``Copia de Europe Steel INDEXES.xlsx``) sits in data/raw/ (gitignored). Columns are located by their
 header labels, never by fixed letters, so a reshuffled export fails loudly instead of reading the wrong series.
 
-Output: EUR/t, month-start index, columns ``LIC_COLUMNS``. ``LIC_CRU_SS304_DE`` = base price + alloy surcharge.
-The ``LIC_`` prefix avoids any clash with the empty official L01-L08 columns.
+Output: EUR/t, month-start index named "month". Column ids follow Schneider's BOM mapping (eu_series_ids):
+L01 = MEPS Germany CR coil, L02 = CRU Germany 304 CR-2mm (base + alloy surcharge), L03 = MEPS Germany HDG coil,
+plus L01_FR = MEPS France CR coil (regional index for the RM6 plant; optional, skipped if absent).
+Schneider allowed MEPS/CRU use (2026-11-19). Licensed: never in git, CI logs or the submission CSV.
 """
 
 from __future__ import annotations
@@ -16,16 +18,24 @@ import numpy as np
 import openpyxl
 import pandas as pd
 
-from src.data import RAW
+import src.data as _d
 
-LICENSED_FILE = RAW / "Copia de Europe Steel INDEXES.xlsx"
-LIC_COLUMNS = ("LIC_MEPS_CR_DE", "LIC_MEPS_HDG_DE", "LIC_MEPS_CR_FR", "LIC_CRU_SS304_DE")
+FILE_NAMES = ("Copia de Europe Steel INDEXES.xlsx", "Copia_de_Europe_Steel_INDEXES.xlsx")
+LIC_COLUMNS = ("L01", "L02", "L03", "L01_FR")
+OPTIONAL = {"L01_FR"}
 
 # column -> (sheet, header path ...). Header rows: MEPS = (country row 1, product row 5);
 # CRU Stainless = (country row 1, grade row 2, component row 5).
-MEPS_SPEC = {"LIC_MEPS_CR_DE": ("Germany", "CR coil"), "LIC_MEPS_HDG_DE": ("Germany", "HDG coil"),
-             "LIC_MEPS_CR_FR": ("France", "CR coil")}
-SS_SPEC = {"LIC_CRU_SS304_DE": ("Germany", "Grade 304")}
+MEPS_SPEC = {"L01": ("Germany", "CR coil"), "L03": ("Germany", "HDG coil"), "L01_FR": ("France", "CR coil")}
+SS_SPEC = {"L02": ("Germany", "Grade 304")}
+
+
+def licensed_file() -> Path:
+    for name in FILE_NAMES:
+        if (_d.RAW / name).exists():
+            return _d.RAW / name
+    raise FileNotFoundError(f"Fichier acier MEPS/CRU introuvable dans {_d.RAW} ({' ou '.join(FILE_NAMES)}) : "
+                            "fichier sous licence, à placer en local")
 
 
 def _num(v) -> float:
@@ -61,12 +71,18 @@ def _find(headers, labels: tuple[str, ...], sheet: str) -> int:
     return hits[0]
 
 
-def load_licensed(path: Path = LICENSED_FILE) -> pd.DataFrame:
+def load_licensed(path: Path | None = None) -> pd.DataFrame:
+    path = licensed_file() if path is None else path
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     out = {}
     headers, data, idx = _read(wb["MEPS"], [1, 5], 6)
     for col, labels in MEPS_SPEC.items():
-        j = _find(headers, labels, "MEPS")
+        try:
+            j = _find(headers, labels, "MEPS")
+        except ValueError:
+            if col in OPTIONAL:
+                continue
+            raise
         out[col] = pd.Series([_num(r[j]) if j < len(r) else np.nan for r in data], index=idx)
     headers, data, idx = _read(wb["CRU Stainless"], [1, 2, 5], 6)
     for col, (country, grade) in SS_SPEC.items():
@@ -74,8 +90,9 @@ def load_licensed(path: Path = LICENSED_FILE) -> pd.DataFrame:
         ja = _find(headers, (country, grade, "Alloy"), "CRU Stainless")
         out[col] = pd.Series([_num(r[jb]) + _num(r[ja]) for r in data], index=idx)
     wb.close()
-    df = pd.DataFrame(out).sort_index()[list(LIC_COLUMNS)]
-    df = df.where(df > 0)
+    df = pd.DataFrame(out).sort_index()[[c for c in LIC_COLUMNS if c in out]]
+    df = df.where(df > 0).astype(float)
+    df.index.name = "month"
     empty = [c for c in df if df[c].isna().all()]
     if empty:
         raise ValueError(f"licensed columns with no data: {empty}")

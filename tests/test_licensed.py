@@ -59,15 +59,15 @@ def test_columns_units_and_month_start(wb_path):
     df = load_licensed(wb_path)
     assert list(df.columns) == list(LIC_COLUMNS)
     assert df.index.min() == pd.Timestamp("2012-11-01") and (df.index.day == 1).all()
-    assert df.at[pd.Timestamp("2012-12-01"), "LIC_MEPS_CR_DE"] == 601
-    assert df.at[pd.Timestamp("2012-12-01"), "LIC_MEPS_CR_FR"] == 611
-    assert df.at[pd.Timestamp("2012-12-01"), "LIC_MEPS_HDG_DE"] == 701
-    assert df.at[pd.Timestamp("2012-12-01"), "LIC_CRU_SS304_DE"] == 2001 + 1001
+    assert df.at[pd.Timestamp("2012-12-01"), "L01"] == 601
+    assert df.at[pd.Timestamp("2012-12-01"), "L01_FR"] == 611
+    assert df.at[pd.Timestamp("2012-12-01"), "L03"] == 701
+    assert df.at[pd.Timestamp("2012-12-01"), "L02"] == 2001 + 1001
 
 
 def test_dash_and_blank_become_nan_not_zero(wb_path):
     df = load_licensed(wb_path)
-    assert df["LIC_CRU_SS304_DE"].isna().sum() == 2 and (df.fillna(1) > 0).all().all()
+    assert df["L02"].isna().sum() == 2 and (df.fillna(1) > 0).all().all()
 
 
 def test_missing_label_raises(tmp_path):

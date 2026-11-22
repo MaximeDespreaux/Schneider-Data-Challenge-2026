@@ -27,10 +27,11 @@ class SignalRidge:
     window: int = 180
     min_obs: int = 48
     always: tuple = ("own_d1",)  # toujours inclus (momentum)
+    cross: tuple | None = None  # séries cross_* candidates (None -> features.CROSS, la v1)
 
     def point_frame(self, y: pd.Series, steps, exog: pd.DataFrame) -> pd.DataFrame:
         target = y.name
-        feats = make_features(exog, target).reindex(y.index)
+        feats = make_features(exog, target, cross=self.cross).reindex(y.index)
         ly = np.log(y)
         base = float(y.iloc[-1])
         out = {}
@@ -69,11 +70,12 @@ class Champion:
     selected: dict
     min_signals: int = 3
     name: str = "champion"
+    cross: tuple | None = None  # séries cross_* candidates (None -> features.CROSS, la v1)
 
     def __post_init__(self):
         from src.testbench.models import NaiveVolScaled
         self.bands = NaiveVolScaled()
-        self.ridge = SignalRidge(selected=self.selected, alpha_per_obs=2.0)
+        self.ridge = SignalRidge(selected=self.selected, alpha_per_obs=2.0, cross=self.cross)
 
     def uses_signals(self, target: str, step: int) -> bool:
         h = min(HORIZONS, key=lambda k: abs(k - step))

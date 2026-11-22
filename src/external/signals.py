@@ -13,6 +13,8 @@ aucun signal ne peut voir le futur (vérifié par le test de perturbation, src/t
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import openpyxl
@@ -27,7 +29,10 @@ LONG_SOURCES = {
     "S04": ("fred", "PIORECRUSDM"), "S05": ("fred", "PZINCUSDM"), "S06": ("fred", "EXUSEU"),
     "S12": ("fred", "WPU1017"), "S13": ("fred", "PCU325211325211"),
     "S07": ("eu", "S07"), "S08": ("eu", "S08"), "S09": ("eu", "S09"), "S10": ("eu", "S10"), "S11": ("eu", "S11"),
+    "EL01": ("eu", "EL01"), "EL02": ("eu", "EL02"), "EL03": ("eu", "EL03"),
     "E01": ("fred", "POILBREUSDM"), "E05": ("fred", "PNGASEUUSDM"),
+    "E08": ("fred", "PCOALAUUSDM"), "E06": ("fred", "PNGASUSUSDM"), "E07": ("fred", "PNGASJPUSDM"),
+    "E22": ("fred", "PNRGINDEXM"), "E14": ("eu", "E14"), "E15": ("eu", "E15"),
 }
 
 EXTERNAL = {  # colonne FRED -> nom du signal
@@ -67,10 +72,12 @@ def load_lme() -> pd.DataFrame:
 def load_external() -> pd.DataFrame:
     f = _fred()
     x = f[[c for c in EXTERNAL if c in f]].rename(columns=EXTERNAL)
-    # GSCPI optionnel : le fetcher enregistre un .xls (format OLE2) que rien ne convertit en gscpi.csv
     if (EXT / "gscpi.csv").exists():
         g = pd.read_csv(EXT / "gscpi.csv", index_col=0, parse_dates=True)["GSCPI"].rename("X_GSCPI")
         x = x.join(g, how="outer")
+    else:
+        warnings.warn(f"{EXT / 'gscpi.csv'} absent : signal X_GSCPI ignoré (lancer src.external.fetch_public).",
+                      stacklevel=2)
     try:
         x = x.join(load_lme(), how="outer")
     except FileNotFoundError:
@@ -84,15 +91,34 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
     idx = pd.date_range(start, panel.index.max(), freq="MS")
     out = panel.reindex(idx)
     for col, (src, code) in LONG_SOURCES.items():
-        if col not in out:
+        src_df = f if src == "fred" else eu
+        if col not in out or code not in src_df:  # source not downloaded yet (run fetch_public)
             continue
-        longs = (f if src == "fred" else eu)[code].reindex(idx)
+        longs = src_df[code].reindex(idx)
         first = panel[col].first_valid_index()
         if first is None or pd.isna(longs.get(first)):
             continue
         ratio = panel.at[first, col] / longs.at[first]
         before = idx < first
         out.loc[before, col] = longs[before] * ratio
+    # acier MEPS/CRU et epoxy : même source que le panel (ratio = 1). EP01 commence en 2018-01 (NaN avant).
+    longs = {}
+    try:
+        longs.update(d.load_licensed_steel().reindex(idx).to_dict("series"))
+    except FileNotFoundError:
+        pass
+    try:
+        longs["EP01"] = d.load_epoxy_series().reindex(idx)
+    except FileNotFoundError:
+        pass
+    for col, src_s in longs.items():
+        if col not in out:
+            continue
+        first = panel[col].first_valid_index()
+        if first is None:
+            continue
+        before = idx < first
+        out.loc[before, col] = src_s[before]
     # séries dérivées en EUR (définies seulement là où le taux EUR/USD existe, i.e. depuis 1999)
     before = out.index < panel.index.min()
     out.loc[before, "D01"] = out.loc[before, "S01"] / out.loc[before, "S06"]
@@ -101,10 +127,21 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
         out.loc[before, "ED01"] = out.loc[before, "E01"] / out.loc[before, "S06"]
     if "ED02" in out:
         out.loc[before, "ED02"] = out.loc[before, "E05"] * 3.412 / out.loc[before, "S06"]
+    # GNL Japon et gaz US en EUR/MWh (USD/MMBtu × 3,412 / USD par EUR), seulement là où les entrées existent
+    if "ED03" in out and "E07" in out:
+        out.loc[before, "ED03"] = out.loc[before, "E07"] * 3.412 / out.loc[before, "S06"]
+    if "ED04" in out and "E06" in out:
+        out.loc[before, "ED04"] = out.loc[before, "E06"] * 3.412 / out.loc[before, "S06"]
     return out
 
 
-def build_panel(long: bool = True, external: bool = True) -> pd.DataFrame:
-    """Panel public (sans données sous licence). Délègue au constructeur unique du banc de test."""
-    from src.testbench.panel import build_full_panel
-    return build_full_panel(use_licensed=False, long=long, external=external)
+def build_panel(long: bool = True, external: bool = True, use_licensed: bool | None = None) -> pd.DataFrame:
+    """Panel complet. ``use_licensed=None`` -> interrupteur ``backtest.use_licensed`` de config/assumptions.yaml
+    (False si la config est absente). Délègue au constructeur unique du banc de test."""
+    from src.testbench.panel import build_full_panel, load_backtest_config
+    if use_licensed is None:
+        try:
+            use_licensed = load_backtest_config()["use_licensed"]
+        except (FileNotFoundError, KeyError):
+            use_licensed = False
+    return build_full_panel(use_licensed=use_licensed, long=long, external=external)

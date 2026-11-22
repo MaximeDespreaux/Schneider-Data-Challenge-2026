@@ -48,7 +48,7 @@ def test_lags_passthrough(panel):
 def test_build_full_panel(lic):
     from src.testbench.panel import build_full_panel
     p = build_full_panel(use_licensed=lic)
-    assert not any(c.startswith("L0") for c in p.columns)
-    assert any(c.startswith("LIC_") for c in p.columns) == lic
+    assert not any(c in p.columns for c in ["L04", "L05", "L06", "L07", "L08"])
+    assert ("L01" in p.columns) == lic and ("EP01" in p and "BR01" in p)
     assert "EPX_ECH" in p and p.index.min() == pd.Timestamp("1992-01-01")
     assert p.index.is_unique and p.index.is_monotonic_increasing

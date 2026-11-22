@@ -6,6 +6,8 @@ aucune valeur : seulement des chemins, des schémas et des hypothèses document�
 
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -21,8 +23,11 @@ PRODUCTS = {
     "AirSeT": "RMAirSeT IIQ 24kV IEC",
 }
 
-# Séries à prévoir (proxys gratuits). Les séries L sont vides par construction.
-RM_TARGETS = ["S01", "S02", "S03", "S04", "S05", "S07", "S08", "S09", "S10", "S11", "S12", "S13", "D01", "D02"]
+# Séries à prévoir. Les 14 séries d'origine de Schneider (proxys gratuits) : seules celles-ci vont dans le CSV.
+SCHNEIDER_RM_TARGETS = ["S01", "S02", "S03", "S04", "S05", "S07", "S08", "S09", "S10", "S11", "S12", "S13", "D01", "D02"]
+# Séries ajoutées : acier sous licence MEPS/CRU (L01-L03), epoxy (EP01), électronique Eurostat (EL01).
+EXTRA_TARGETS = ["L01", "L02", "L03", "EP01", "EL01"]
+RM_TARGETS = SCHNEIDER_RM_TARGETS + EXTRA_TARGETS
 
 # Publication lags live in config/availability.yaml (single source of truth).
 
@@ -64,13 +69,17 @@ def load_catalogs() -> tuple[pd.DataFrame, pd.DataFrame]:
     return rm, en
 
 
-def load_bom(version: str = "root", rm6_carbon_share: float = 0.45, allow_deprecated: bool = False) -> pd.DataFrame:
+def load_bom(version: str = "v2", rm6_carbon_share: float = 0.45, allow_deprecated: bool = False) -> pd.DataFrame:
     """BOM nettoyée, une ligne par (produit, matière).
 
-    version="root" -> RM_Prices_XHEC_Challenge.xlsx à la racine de Data/ : **BOM officielle** (décision d'équipe
-                      après la Q&A du 18/11 ; = ``xlsx_v1`` dans config/assumptions.yaml)
-    version="csv"  -> panel/bom_materials.csv (data.zip) : **obsolète**, gardée seulement pour les tests de sensibilité
-    La grosse part non étiquetée du RM6 est supposée en acier carbone : masse = rm6_carbon_share × masse totale implicite.
+    version="v2"   -> RM_Prices_XHEC_Challenge_v1.xlsx : **nouvelle BOM officielle** (envoyée par Schneider ~20 nov. ;
+                      = ``xlsx_v2`` dans config/assumptions.yaml)
+    version="root" -> RM_Prices_XHEC_Challenge.xlsx : version officielle précédente, gardée pour les tests de
+                      sensibilité (= ``xlsx_v1``)
+    version="csv"  -> panel/bom_materials.csv (data.zip) : **obsolète**
+    Les lignes epoxy (``material_label_source`` contenant « Epoxy ») passent en famille « Epoxy ».
+    Anciennes versions seulement : la grosse part non étiquetée du RM6 est supposée en acier carbone
+    (masse = rm6_carbon_share × masse totale implicite).
     """
     if version == "csv" and not allow_deprecated:
         raise ValueError("BOM csv is deprecated (see data/Data/BOM_SOURCE_OF_TRUTH.md); "
@@ -79,9 +88,13 @@ def load_bom(version: str = "root", rm6_carbon_share: float = 0.45, allow_deprec
         bom = pd.read_csv(PANEL / "bom_materials.csv")
     elif version == "root":
         bom = pd.read_excel(RAW / "RM_Prices_XHEC_Challenge.xlsx", sheet_name="BOM_Materials")
+    elif version == "v2":
+        bom = pd.read_excel(RAW / "RM_Prices_XHEC_Challenge_v1.xlsx", sheet_name="BOM_Materials")
     else:
         raise ValueError(version)
     bom = bom[bom["product_ref"].isin(PRODUCTS.values())].copy()
+    epoxy = bom["material_label_source"].astype(str).str.contains("Epoxy", case=False, na=False)
+    bom.loc[epoxy, "material_family"] = "Epoxy"
     bom["implied_total_kg"] = bom["mass_kg"] / bom["share_pct"]
     rows = []
     for prod, g in bom.groupby("product_ref"):
@@ -156,8 +169,14 @@ def correct_epoxy(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_epoxy(correct: bool = True) -> pd.DataFrame:
-    """Epoxy cost build-up (EUR/t), month-start index, columns EPX_*. Input only, not a CSV target."""
-    df = pd.read_excel(RAW / "Epoxy for student.xlsx", sheet_name="Feuil1")
+    """Epoxy cost build-up (EUR/t), month-start index, columns EPX_*. ECH May-2026 typo corrected (x10)."""
+    path = RAW / "Epoxy for student.xlsx"
+    if not path.exists():
+        path = RAW / "Epoxy_for_student.xlsx"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Fichier epoxy introuvable : mettre 'Epoxy for student.xlsx' (ou 'Epoxy_for_student.xlsx') dans {RAW}")
+    df = pd.read_excel(path, sheet_name="Feuil1")
     df = df.rename(columns={df.columns[0]: "date"})
     df = df.drop(columns=[c for c in df.columns if str(c).startswith("Unnamed")])
     df["month"] = pd.to_datetime(df["date"]).dt.to_period("M").dt.to_timestamp()
@@ -166,6 +185,94 @@ def load_epoxy(correct: bool = True) -> pd.DataFrame:
         raise ValueError(f"epoxy file: expected {len(EPOXY_COLUMNS)} columns, got {list(df.columns)}")
     df.columns = EPOXY_COLUMNS
     return correct_epoxy(df) if correct else df
+
+
+def load_epoxy_series() -> pd.Series:
+    """Prix mensuel de la résine epoxy (EUR/t), série ``EP01`` indexée au début de mois."""
+    s = pd.to_numeric(load_epoxy()["EPX_RESIN"], errors="coerce").astype(float)
+    s = s.groupby(level=0).mean().sort_index()
+    s.index.name = "month"
+    return s.rename("EP01")
+
+
+def _num(v) -> float:
+    """Cellule Excel -> float (NaN si non numérique : '-', None, texte)."""
+    if isinstance(v, bool):
+        return np.nan
+    if isinstance(v, (int, float, np.integer, np.floating)):
+        return float(v)
+    return np.nan
+
+
+def load_licensed_steel() -> pd.DataFrame:
+    """Prix acier sous licence (MEPS / CRU), EUR/t : L01 = MEPS DE CR coil, L02 = CRU DE 304 CR-2mm (base +
+    surcharge), L03 = MEPS DE HDG coil, L01_FR = MEPS FR CR coil (usine RM6). Lecture par en-têtes
+    (``src.licensed``). Fichier sous licence : jamais commité, jamais dans le CSV."""
+    from src.licensed import load_licensed
+    return load_licensed()
+
+
+TEARDOWN_LINE = re.compile(r"^\s{2}(?P<material>[^—]+?)\s—\s(?P<grams>[\d\s]+)\sg")
+TEARDOWN_BRANDS = {"ormazabal": "Ormazabal", "eaton": "Eaton", "SGC": "SGC", "Schneider": "Schneider", "ABB": "ABB",
+                   "Siemens": "Siemens"}
+TEARDOWN_GROUPS = {
+    "copper": ["Copper"],
+    "carbon_steel": ["Steel"],
+    "aluminium": ["Aluminium"],
+    "brass": ["Brass"],
+    "silver": ["Silver"],
+    "epoxy": ["Epoxy", "Cast", "Thermoset"],
+    "plastics": ["Thermoplastic", "Polyester", "PA66", "ABS", "Polyamide", "Polycarbonate", "Polyethylene", "PTFE",
+                 "Glass-reinforced", "Laminated"],
+    "electronics": ["PCB", "Printed", "FR-4"],
+    "sf6": ["SF6", "Sulphur"],
+    "packaging": ["Wood", "Softwood", "Cardboard", "Paper"],
+}
+_TEARDOWN_GROUP_OF = {m.lower(): g for g, ms in TEARDOWN_GROUPS.items() for m in ms}
+
+
+def load_competitor_teardowns() -> pd.DataFrame:
+    """Masses matières des teardowns de RMU concurrents (estimations d'une agence externe).
+
+    Une ligne par (marque, produit, matière) : brand, product, material, group, mass_kg, total_kg, broken
+    (``broken`` = total < 1 kg, teardown inexploitable).
+    """
+    import openpyxl
+
+    path = RAW / "competitor_teardown_rm6_class.xlsx"
+    if not path.exists():
+        alt = sorted(RAW.glob("benchmark-modules-fonctionnels-rm6*.xlsx"))
+        if not alt:
+            raise FileNotFoundError(f"Teardowns concurrents introuvables : {path}")
+        path = alt[0]
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    rows = []
+    try:
+        for name in wb.sheetnames:
+            if not name.startswith("BOM "):
+                continue
+            col_a = [r[0] if r else None for r in wb[name].iter_rows(max_col=1, values_only=True)]
+            title = str(col_a[0]) if col_a and col_a[0] is not None else ""
+            product = title.split("—", 1)[1].strip() if "—" in title else title.strip()
+            first = name[len("BOM "):].split()[0]
+            brand = TEARDOWN_BRANDS.get(first, first)
+            for v in col_a[1:]:
+                if not isinstance(v, str):
+                    continue
+                m = TEARDOWN_LINE.match(v)
+                if not m:
+                    continue
+                material = m.group("material").strip().rstrip(",").strip()
+                grams = float(re.sub(r"\s", "", m.group("grams")))
+                rows.append({"brand": brand, "product": product, "material": material,
+                             "group": _TEARDOWN_GROUP_OF.get(material.lower(), "other"), "mass_kg": grams / 1000.0})
+    finally:
+        wb.close()
+    df = pd.DataFrame(rows, columns=["brand", "product", "material", "group", "mass_kg"])
+    df = df.groupby(["brand", "product", "material", "group"], as_index=False, sort=False)["mass_kg"].sum()
+    df["total_kg"] = df.groupby(["brand", "product"])["mass_kg"].transform("sum")
+    df["broken"] = df["total_kg"] < 1.0
+    return df
 
 
 def dlog(df: pd.DataFrame | pd.Series, k: int = 1):
