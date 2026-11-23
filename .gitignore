@@ -21,3 +21,8 @@ __pycache__/
 # Data (not tracked; keep folder)
 data/*
 !data/.gitkeep
+
+# NDA: private originals (public copies live in public/)
+/notebooks/
+/reports/
+/DATA_OVERVIEW.md
