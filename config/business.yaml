@@ -80,3 +80,20 @@ suppliers:
     - {file_keyword: REDACTED,                 name: REDACTED,                  country: FR, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
     - {file_keyword: REDACTED,             name: REDACTED,            country: DE, country_status: to confirm, sector: fabricated_metal,     sector_status: to confirm}
     - {file_keyword: REDACTED,                    name: REDACTED,                     country: FR, country_status: to confirm, sector: electrical_services,  sector_status: to confirm}
+
+olivier_gaps:
+  lme_reference:
+    metals: [copper, aluminium]
+    horizons: [3, 6, 9]
+    start: "2017-01"            # first offer month
+    trigger_pct: 5              # same as quote_rules.indexation_trigger_pct; read that value and assert equal
+    lagged_avg_months: 3        # index = average cash price of the 3 months before delivery
+    periods:                    # for sub-period results (by offer month)
+      calm_2017_2020: ["2017-01", "2020-12"]
+      shock_2021_2022: ["2021-01", "2022-12"]
+      post_shock_2023_2024: ["2023-01", "2024-12"]
+      rally_2025_2026: ["2025-01", "2026-09"]
+  sensitivity:
+    unidentified_price_as: {low: carbon_steel, mid: plastics, high: epoxy, extreme: brass}
+    brass_copper_share: [0.55, 0.63, 0.70]
+    plastics_eur_per_kg: [1.5, 2.5, 3.5]
