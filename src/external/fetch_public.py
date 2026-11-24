@@ -85,7 +85,7 @@ EUROSTAT = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/
 # mêmes indices que S07-S11 du panel, mais depuis 2000 (historique plus long)
 EUROSTAT_SERIES = {"S07": ("C2444", "EU27_2020"), "S08": ("C2442", "EU27_2020"), "S09": ("C241", "EU27_2020"),
                    "S10": ("C241", "DE"), "S11": ("C2016", "EU27_2020"),
-                   # NACE C26.1 = composants et cartes électroniques ; HU = usine AirSeT, FR = usine RM6
+                   # NACE C26.1 = composants et cartes électroniques ; HU et FR = indices régionaux
                    "EL01": ("C261", "EU27_2020"), "EL02": ("C261", "HU"), "EL03": ("C261", "FR"),
                    # NACE D35 = électricité, gaz, vapeur : historique long de E14 (DE) et E15 (FR)
                    "E14": ("D35", "DE"), "E15": ("D35", "FR")}

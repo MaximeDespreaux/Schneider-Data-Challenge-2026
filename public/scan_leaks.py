@@ -1,6 +1,6 @@
 """NDA leak scanner for everything that may be pushed.
 
-Usage:  uv run python public/scan_leaks.py [paths ...]      (default: public/ README.md src/)
+Usage:  uv run python public/scan_leaks.py [paths ...]      (default: every file git tracks or would add)
 Lines containing "nda-ok" are skipped (reviewed false positives).
 Exit code 1 if any private term, private number or structural problem is found.
 
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,7 +51,7 @@ def _num_variants(v: float) -> set[str]:
     if abs(v - r) < 1e-9 or abs(v) >= 500:
         # years and round numbers are too common in normal text to be evidence of a leak
         if abs(r) >= 100 and not (1990 <= r <= 2035) and r % 100 != 0:
-            out |= {f"{r}", f"{r:,}", f"{r:,}".replace(",", " "), f"{r:,}".replace(",", " ")}
+            out |= {f"{r}", f"{r:_}", f"{r:,}", f"{r:,}".replace(",", " "), f"{r:,}".replace(",", " ")}
     else:
         for d in (1, 2):
             s = f"{v:.{d}f}"
@@ -74,6 +75,7 @@ def build_denylists() -> tuple[set[str], set[str], set[str], set[str]]:
     for name in k.supplier.dropna():
         terms.add(name)
         terms.add(name.split(" (")[0])
+        terms.add(re.sub(r"\W+", "_", name.split(" (")[0]))  # as written in file names and keywords
     for col in k.select_dtypes("number").columns:
         if col.endswith("_keur"):
             for v in k[col].dropna():
@@ -224,6 +226,13 @@ def scan(paths: list[Path]) -> int:
     return 1 if n_hits else 0
 
 
+def pushable() -> list[Path]:
+    """Every file git tracks or would add (git-ignored files never leave the machine). uv.lock holds only hashes."""
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], cwd=ROOT,
+                         capture_output=True, text=True, check=True).stdout
+    return [ROOT / f for f in out.split("\0") if f and f != "uv.lock" and (ROOT / f).is_file()]
+
+
 if __name__ == "__main__":
-    args = [Path(a) for a in sys.argv[1:]] or [PUBLIC, ROOT / "README.md", ROOT / "src"]
+    args = [Path(a) for a in sys.argv[1:]] or pushable()
     sys.exit(scan(args))

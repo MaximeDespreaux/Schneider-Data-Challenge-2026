@@ -28,8 +28,8 @@ def make_wb(tmp_path, drop: str | None = None):
         ws.cell(row=r, column=2, value=500 + i)   # HR DE
         ws.cell(row=r, column=3, value=600 + i)   # CR DE
         ws.cell(row=r, column=4, value=700 + i)   # HDG DE
-        ws.cell(row=r, column=8, value=610 + i)   # CR FR
-        ws.cell(row=r, column=9, value=710 + i)   # HDG FR
+        ws.cell(row=r, column=8, value=610 + i)   # CR FR  # nda-ok: fake values
+        ws.cell(row=r, column=9, value=710 + i)   # HDG FR  # nda-ok: fake values
     ss = wb.create_sheet("CRU Stainless")
     ss["A1"], ss["B1"], ss["H1"] = "CRU Stainless", "Germany", "France"
     ss["B2"], ss["D2"], ss["H2"] = "Grade 304", "Grade 430", "Grade 304"
@@ -59,8 +59,8 @@ def test_columns_units_and_month_start(wb_path):
     df = load_licensed(wb_path)
     assert list(df.columns) == list(LIC_COLUMNS)
     assert df.index.min() == pd.Timestamp("2012-11-01") and (df.index.day == 1).all()
-    assert df.at[pd.Timestamp("2012-12-01"), "L01"] == 601
-    assert df.at[pd.Timestamp("2012-12-01"), "L01_FR"] == 611
+    assert df.at[pd.Timestamp("2012-12-01"), "L01"] == 601  # nda-ok: fake values
+    assert df.at[pd.Timestamp("2012-12-01"), "L01_FR"] == 611  # nda-ok: fake values
     assert df.at[pd.Timestamp("2012-12-01"), "L03"] == 701
     assert df.at[pd.Timestamp("2012-12-01"), "L02"] == 2001 + 1001
 

@@ -129,7 +129,7 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
         out.loc[before, "ED01"] = out.loc[before, "E01"] / out.loc[before, "S06"]
     if "ED02" in out:
         out.loc[before, "ED02"] = out.loc[before, "E05"] * 3.412 / out.loc[before, "S06"]
-    # GNL Japon et gaz US en EUR/MWh (USD/MMBtu × 3,412 / USD par EUR), seulement là où les entrées existent
+    # GNL Japon et gaz US en EUR/MWh (USD/MMBtu × 3,412 / USD par EUR), seulement là où les entrées existent  # nda-ok: MMBtu to MWh factor
     if "ED03" in out and "E07" in out:
         out.loc[before, "ED03"] = out.loc[before, "E07"] * 3.412 / out.loc[before, "S06"]
     if "ED04" in out and "E06" in out:

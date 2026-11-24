@@ -87,19 +87,19 @@ def test_teardown_parser(tmp_path, monkeypatch):
     wb.active.title = "Benchmark"
     _sheet(wb, "BOM ormazabal Test-1", [
         ("Teardown — ormazabal Test-1 HN",), ("Part",),
-        ("METALS · PRECIOUS — 11 000 g · 2%",),
-        ("  Copper — 7 000 g · 11 pcs",), ("Busbar",),
+        ("METALS · PRECIOUS — 11 000 g · 5%",),
+        ("  Copper — 7 000 g · 5 pcs",), ("Busbar",),
         ("  Steel — 1 234 567 g · 3 pcs",),
         ("PLASTICS — 500 g · 1%",),
         ("  Epoxy — 500 g · 1 pcs",),
         ("  Wood — 2000 g · 1 pcs",),
         ("  SF6 — 300 g · 1 pcs",),
-        ("  FR-4, — 120 g · 1 pcs",),
+        ("  FR-4, — 77 g · 2 pcs",),
         ("  Mystery — 10 g · 1 pcs",),
     ])
     _sheet(wb, "BOM SGC – Tiny nv", [
         ("Teardown — SGC – Tiny nv DR-6",), ("Part",),
-        ("  Copper — 34 g · 3 pcs",), ("  Steel — 89 g · 36 pcs",),
+        ("  Copper — 40 g · 2 pcs",), ("  Steel — 60 g · 2 pcs",),  # fake values
     ])
     wb.save(tmp_path / "competitor_teardown_rm6_class.xlsx")
     monkeypatch.setattr(d, "RAW", tmp_path)
@@ -117,7 +117,7 @@ def test_teardown_parser(tmp_path, monkeypatch):
     assert not any("METALS" in m for m in df["material"])  # en-têtes de groupe ignorés
     assert not orm["broken"].any()
     sgc = df[df.brand == "SGC"]
-    assert sgc["total_kg"].iloc[0] == pytest.approx(0.123) and sgc["broken"].all()
+    assert sgc["total_kg"].iloc[0] == pytest.approx(0.1) and sgc["broken"].all()
 
 
 # ---------------------------------------------------------------------------- 3. dérivation (électronique)
@@ -177,7 +177,7 @@ def test_load_bom_v2(tmp_path, monkeypatch):
         (rm6, "PP Polypropylene EU", "Plastic", 0.02, 2.0),
         (rm6, "Unidentified remainder", "To confirm", 0.05, 5.0),
         ("Total visible labelled mass – RM6 (kg)", None, None, None, 72.0),
-        ("Source total mass – REDACTED / RM6 (kg)", None, None, None, 100.0),
+        ("Source total mass – PLANT / RM6 (kg)", None, None, None, 100.0),
     ]
     bom = pd.DataFrame(rows, columns=["product_ref", "material_label_source", "material_family", "share_pct",
                                       "mass_kg"])
