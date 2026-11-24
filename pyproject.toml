@@ -13,12 +13,18 @@ dependencies = [
     "seaborn",
     "xgboost",
     "lightgbm",
+    "openpyxl>=3.1.5",
+    "statsmodels>=0.15.0",
+    "pyyaml",
+    "scipy",
+    "requests",
 ]
 
 [dependency-groups]
 dev = [
     "jupyterlab",
     "ipykernel",
+    "pytest>=9.2.0",
 ]
 
 [tool.uv]

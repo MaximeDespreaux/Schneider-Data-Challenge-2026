@@ -1,8 +1,9 @@
 .DEFAULT_GOAL := help
-.PHONY: help install hooks lock lab clean clean-venv
+.PHONY: help install hooks lock lab clean clean-venv \
+	data-check fetch test verify backtest champion champion-v2 compare business submission all
 
 help: ## Show available targets
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 install: ## Create .venv and install all dependencies (incl. dev)
 	uv sync
@@ -23,3 +24,34 @@ clean: ## Remove caches and notebook checkpoints
 
 clean-venv: ## Remove the virtual environment
 	rm -rf .venv
+
+data-check: ## Check data/raw/ and config/assumptions.yaml are in place (no data read)
+	uv run python -m src.checks.check_data_layout
+
+fetch: ## Download public data (FRED, Eurostat, NY Fed) into data/raw/external/
+	uv run python -m src.external.fetch_public
+
+test: ## Run the unit tests (synthetic data only)
+	uv run pytest -q
+
+verify: ## Local checks on real data: data fixes + driver model sanity check
+	uv run python -m src.checks.verify_fixes && uv run python -m src.checks.verify_drivers
+
+backtest: ## Full forecast backtest of the baseline models (slow)
+	uv run python -m src.testbench.run
+
+champion: ## Champion v1: screening, 2024-26 holdout, draft submission CSV
+	uv run python -m src.external.run_champion
+
+champion-v2: ## Champion v2 option (extended energy candidates), files suffixed _v2
+	uv run python -m src.external.run_champion --candidates v2
+
+compare: ## Champion v1 vs v2 (pre-registered rule) + provided-series status table
+	uv run python -m src.checks.compare_champions && uv run python -m src.checks.provided_series_table
+
+business: ## Business modules (pricing levers, TCO, suppliers...) + REPORT.md
+	uv run python -m src.business.run_all
+
+submission: champion ## Alias of champion: writes the draft submission CSV in data/outputs/testbench/
+
+all: data-check fetch test champion business ## data-check -> fetch -> test -> champion -> business (stops on first failure)
