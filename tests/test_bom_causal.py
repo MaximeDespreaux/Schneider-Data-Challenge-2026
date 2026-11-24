@@ -13,7 +13,7 @@ def toy(monkeypatch):
     rng = np.random.default_rng(1)
     idx = pd.date_range("2010-01-01", periods=120, freq="MS")
     walk = lambda lvl, s: lvl * np.exp(np.cumsum(rng.normal(0, s, len(idx))))  # noqa: E731
-    p = pd.DataFrame({"D01": walk(6000, .05), "L01": walk(600, .04), "L01_FR": walk(620, .04),
+    p = pd.DataFrame({"D01": walk(6000, .05), "L01": walk(600, .04), "L01_FR": walk(620, .04),  # nda-ok: random-walk start
                       "L02": walk(2500, .04), "S11": walk(100, .02), "EL01": walk(100, .01)}, index=idx)
     p.loc[: idx[29], "L01_FR"] = np.nan          # regional series starts later
     p.loc[idx[-1], "L02"] = np.nan               # stainless not yet published at the last month

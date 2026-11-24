@@ -91,7 +91,7 @@ def _ctx(idx_p90=130.0, margin=0.15, floor=0.08, cost_base=5_000.0):
 
 
 def test_recommend_floor_binds():
-    # delta = 5000 × 30 % = 1500 EUR; pass-through 0.5 -> +750; margin would fall to 15 % − 7.5 % = 7.5 % < 8 %
+    # delta = 5000 × 30 % = 1500 EUR; pass-through 0.5 -> +750; margin would fall to 15 % − 7.5 % = 7.5 % < 8 %  # nda-ok: toy computation
     r = pricing_levers.recommend("RM6", 6, "p90", "standard", 200_000, ctx=_ctx())
     assert r["floor_binding"] is True
     assert r["margin_after"] == pytest.approx(0.08)

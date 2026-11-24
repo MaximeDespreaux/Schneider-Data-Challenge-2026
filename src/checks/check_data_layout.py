@@ -80,12 +80,14 @@ def check() -> tuple[list[dict], list[str]]:
         f"put the teardown workbook in {rel(RAW)}/ as competitor_teardown_rm6_class.xlsx "
         "(the original benchmark-modules-fonctionnels-rm6-...-sf6.xlsx name is also accepted)")
 
-    # supplier PitchBook files, one per company in config/business.yaml
+    # supplier PitchBook files, one per company in config/suppliers.local.yaml (git-ignored, NDA)
+    from src.business.config import SUPPLIERS_LOCAL, load_business_config
     from src.business.suppliers import _norm  # same matching rule as the parser (punctuation / accents ignored)
     sup_dir = RAW / "suppliers"
     files = sorted(sup_dir.glob("PitchBook_-_*.xlsx")) if sup_dir.exists() else []
-    with open(ROOT / "config" / "business.yaml", encoding="utf-8") as f:
-        companies = yaml.safe_load(f)["suppliers"]["companies"]
+    companies = load_business_config()["suppliers"]["companies"]
+    add(rel(SUPPLIERS_LOCAL), True, bool(companies), "supplier list (gitignored)",
+        "copy config/suppliers.example.yaml to config/suppliers.local.yaml and fill it (ask the team for the list)")
     for c in companies:
         hits = [p for p in files if _norm(c["file_keyword"]) in _norm(p.name)]
         add(f"data/raw/suppliers/PitchBook_-_*{c['file_keyword']}*.xlsx", True, len(hits) >= 1,

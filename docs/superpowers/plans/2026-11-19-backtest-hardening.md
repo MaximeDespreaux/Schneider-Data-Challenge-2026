@@ -131,7 +131,7 @@ Workbook layout (structure only):
 
 - [ ] **Step 1: Write the failing tests.** A fixture builds a synthetic workbook with openpyxl in `tmp_path`:
   - It reproduces both layouts with Germany and France blocks.
-  - It has 30 months from 2012-11, with values `600 + i` (CR DE), `700 + i` (HDG DE), `610 + i` (CR FR).
+  - It has 30 months from 2012-11, with values `600 + i` (CR DE), `700 + i` (HDG DE), `610 + i` (CR FR). <!-- nda-ok: fake test values -->
   - Stainless BASE `2000 + i` and Alloy `1000 + i` start 2012-11-15.
   - It leaves one blank cell and one `"-"` cell in the stainless block.
 
@@ -140,7 +140,7 @@ def test_columns_units_and_month_start(wb_path):
     df = load_licensed(wb_path)
     assert list(df.columns) == list(LIC_COLUMNS)
     assert df.index.min() == pd.Timestamp("2012-11-01") and (df.index.day == 1).all()
-    assert df.at[pd.Timestamp("2012-12-01"), "LIC_MEPS_CR_DE"] == 601
+    assert df.at[pd.Timestamp("2012-12-01"), "LIC_MEPS_CR_DE"] == 601  # nda-ok: fake test value
     assert df.at[pd.Timestamp("2012-12-01"), "LIC_CRU_SS304_DE"] == 2001 + 1001
 
 def test_dash_and_blank_become_nan_not_zero(wb_path):

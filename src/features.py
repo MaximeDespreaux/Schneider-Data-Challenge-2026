@@ -28,8 +28,12 @@ PUB_LAGS: dict[str, int] = {
     **{s: 1 for s in ["S12", "S13", "E17", "E18"]},
     # Eurostat crude imports lag 3–4 months
     **{s: 4 for s in ["E20", "E21", "ED06"]},
-    # ECB FX, Ember power, JEPX, Bank of Japan, CRU/MEPS market prices, LME workbook: known at month end
-    **{s: 0 for s in ["S06", "E23", "E24", "E09", "E10", "E11", "E12", "ED05", "E04", "E19",
+    # Bank of Japan CGPI: published around the middle of the following month
+    **{s: 1 for s in ["E04", "E19"]},
+    # ECB FX, Ember power, JEPX, CRU/MEPS market prices, LME workbook: known at month end.
+    # Convention: here a decision is taken at month END, so a monthly average of month t is known at t. The team test
+    # bench (config/availability.yaml) decides MID-month, hence lag 1 for the same series.
+    **{s: 0 for s in ["S06", "E23", "E24", "E09", "E10", "E11", "E12", "ED05",
                       "CRU_CR_DE", "CRU_CR_FR", "CRU_HDG_DE", "CRU_SS304_DE", "SS304_ALLOY_DE",
                       "cu_spread", "al_spread", "cu_stocks", "al_stocks"]},
 }
@@ -105,6 +109,24 @@ def pub_lag(series: str, default: int = 1) -> int:
         _CATALOG_LAGS = (pd.read_parquet(path, columns=["pub_lag_months"]).pub_lag_months.astype(int).to_dict()
                          if path.exists() else {})
     return _CATALOG_LAGS.get(series, default)
+
+
+def has_declared_lag(series: str) -> bool:
+    """True if the publication lag of ``series`` is declared (``PUB_LAGS`` or the catalog), not the silent default."""
+    return pub_lag(series, default=-1) >= 0
+
+
+def published_by(value_month: pd.Series, value_series: pd.Series, origin: pd.Timestamp, target: str) -> pd.Series:
+    """Was the value of ``value_series`` for ``value_month`` published when ``target`` was forecast from ``origin``?
+
+    The forecast of ``target`` is made when its own month ``origin`` is published, i.e. at ``origin + lag(target)``.
+    For the same series this is simply ``value_month <= origin``; it differs when residuals or training rows are
+    pooled over series with different publication lags."""
+    vm = pd.DatetimeIndex(value_month)
+    lag = pd.Series(value_series).map({s: pub_lag(s) for s in pd.unique(pd.Series(value_series))}).to_numpy()
+    known = vm.year * 12 + vm.month + lag
+    made = origin.year * 12 + origin.month + pub_lag(target)
+    return pd.Series(np.asarray(known <= made), index=getattr(value_month, "index", None))
 
 
 def _shift_for(driver: str, target: str) -> int:

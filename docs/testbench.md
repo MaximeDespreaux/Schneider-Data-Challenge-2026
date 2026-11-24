@@ -17,7 +17,7 @@ uv run python -m src.business.run_margin_replay      # Goal A : quelle politique
   Les moyennes mensuelles de prix quotidiens (VIX, change, LME…) ont un délai de 1 en `realtime` (mois incomplet
   à mi-mois), contre 0 auparavant.
 - **Indices BOM causaux** (`targets.make_bom_deriver`) : poids en coût (prix × masse, BOM v2) connus à l'origine,
-  acier régional par produit (indice MEPS régional, config locale), composantes prolongées jusqu'à l'origine (indice = 100),
+  acier régional par produit (MEPS France CR), composantes prolongées jusqu'à l'origine (indice = 100),
   historique chaîné quand une composante démarre plus tard. Plastiques / électronique : niveau EUR/kg de config.
 - **Choix du modèle walk-forward** (`meta.py`) : à chaque origine, seulement les prévisions déjà réalisées ;
   `wf_best`, `wf_blend` (modèle soumis), `wf_median`. Plus de choix sur 2024-26 (déjà regardé).

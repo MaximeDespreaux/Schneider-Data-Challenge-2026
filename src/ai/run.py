@@ -33,8 +33,23 @@ def _ai_names() -> list[str]:
     return [f"{k}+cov" if v["covariates"] else k for k, v in C.MODELS.items()]
 
 
+def classical_base(T: pd.DataFrame, X: pd.DataFrame, rebuild: bool = False) -> pd.DataFrame:
+    """Classical models (naive, dynreg, ensemble...) refit here with the published-by-the-origin rule.
+
+    Not read from data/processed/backtest.parquet: that file (notebook 02) was built before the pooled LightGBM was
+    restricted to published outcomes. Cached; delete the file or pass ``rebuild`` after changing src/models.py."""
+    path = C.OUT / "classical_backtest.parquet"
+    if path.exists() and not rebuild:
+        return pd.read_parquet(path)
+    res = bt.add_ensemble(bt.rolling_origin(T, X, horizons=C.HORIZONS, start=C.BACKTEST_START))
+    res = bt.add_conformal(res, "ensemble")
+    C.OUT.mkdir(parents=True, exist_ok=True)
+    res.to_parquet(path)
+    return res
+
+
 def backtest_stage(T: pd.DataFrame, X: pd.DataFrame) -> tuple[pd.DataFrame, dict, pd.DataFrame]:
-    base = pd.read_parquet(C.ROOT / "data" / "processed" / "backtest.parquet")
+    base = classical_base(T, X)
     base = base[base.model.isin(CLASSICAL)]
     for m in ("naive", "dynreg"):  # same online split-conformal bands as the classical ensemble
         base = bt.add_conformal(base, m)
@@ -53,7 +68,7 @@ def backtest_stage(T: pd.DataFrame, X: pd.DataFrame) -> tuple[pd.DataFrame, dict
 def report_stage(res: pd.DataFrame) -> dict[str, pd.DataFrame]:
     models = ["naive_vol", "ensemble", "dynreg", *_ai_names(), *COMBOS, "ai_selected"]
     split = pd.Timestamp(C.SELECTION_SPLIT)
-    late = res.target_month >= split
+    late = res.origin >= split  # embargo: the choice uses outcomes up to the split, so only later origins are reported
     out = {}
     for b in BENCHES:
         sfx = "" if b == "naive" else f"_vs_{b}"
@@ -65,17 +80,28 @@ def report_stage(res: pd.DataFrame) -> dict[str, pd.DataFrame]:
             c = ab.compare(res, [name], res.target_month > pd.Timestamp(v["clean_after"]), bench=b)
             if not c.empty:
                 clean.append(c.assign(clean_after=v["clean_after"]))
+        # combinations embed Chronos-2 and the selection may pick any model: clean only after the latest release
+        last = max(v["clean_after"] for v in C.MODELS.values())
+        c = ab.compare(res, [m for m in (*COMBOS, "ai_selected", "naive_vol") if m != b],
+                       res.target_month > pd.Timestamp(last), bench=b)
+        if not c.empty:
+            clean.append(c.assign(clean_after=last))
         out[f"clean_window{sfx}"] = pd.concat(clean) if clean else pd.DataFrame()
     fam = res.assign(family=res.series.map(fe.FAMILY))
     out["by_family_from_2024"] = pd.concat(
-        {f: ab.compare(g, models, g.target_month >= split) for f, g in fam.groupby("family")}, names=["family"])
+        {f: ab.compare(g, models, g.origin >= split) for f, g in fam.groupby("family")}, names=["family"])
     dm = []
     for m in _ai_names() + ["ai_selected"]:
-        d = bt.dm_test(res[res.target_month >= split] if m == "ai_selected" else res, m)
+        d = bt.dm_test(res[late], m)
         if not d.empty:
             dm.append(d.assign(model=m))
     out["dm_vs_naive"] = pd.concat(dm).reset_index() if dm else pd.DataFrame()
     return out
+
+
+def known_at(res: pd.DataFrame, cut: pd.Timestamp) -> pd.DataFrame:
+    """Backtest rows whose outcome is dated at or before ``cut`` (...including the residuals behind the live bands)."""
+    return res[res.target_month <= cut]
 
 
 def live_stage(T, X, res: pd.DataFrame, choice: pd.DataFrame) -> pd.DataFrame:
@@ -155,8 +181,8 @@ def main() -> None:
     tables = report_stage(res)
     for name, df in tables.items():
         df.to_csv(C.OUT / f"ai_scores_{name}.csv")
-    cut = pd.Timestamp(C.LIVE_ORIGIN)  # everything after the official origin is dropped for the live forecast
-    live = live_stage(T.loc[:cut], X.loc[:cut], res, choice)
+    cut = pd.Timestamp(C.LIVE_ORIGIN)  # everything after the official origin is dropped for the live forecast...
+    live = live_stage(T.loc[:cut], X.loc[:cut], known_at(res, cut), choice)
     live.to_parquet(C.OUT / "ai_live_forecast.parquet")
     sub = submission_csv(live)
     sub.to_csv(C.OUT / "team_xhec_forecast_ai.csv", index=False)
@@ -164,9 +190,13 @@ def main() -> None:
     fp = footprint(runtime)
     fp.to_csv(C.OUT / "ai_compute_footprint.csv")
     pd.set_option("display.width", 200)
-    for name in ("all", "from_2024", "clean_window", "from_2024_vs_naive_vol", "clean_window_vs_naive_vol"):
+    notes = {"clean_window": "target months after each model's release: the contamination-free check",
+             "from_2024": "origins from 2024 on; pretrained models may have seen part of these months",
+             "all": "all origins, in-sample for the selection; pretrained models may have seen most of these months"}
+    for name in ("clean_window", "clean_window_vs_naive_vol", "from_2024", "from_2024_vs_naive_vol", "all"):
         bench = "naive_vol" if "naive_vol" in name else "naive"
-        print(f"\n=== {name} (rel* < 1 beats {bench}; coverage target 0.80)\n", tables[name].round(3))
+        print(f"\n=== {name} (rel* < 1 beats {bench}; coverage target 0.80)\n    {notes[name.split('_vs_')[0]]}\n",
+              tables[name].round(3))
     print("\n=== pre-registered choice (count by model)\n", choice.chosen.value_counts())
     print("\n=== compute\n", fp.round(4), f"\n\ntotal wall time {time.perf_counter() - t0:.0f}s -> {C.OUT}")
 
