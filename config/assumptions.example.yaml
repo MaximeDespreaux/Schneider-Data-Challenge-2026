@@ -242,5 +242,5 @@ open_questions:
 backtest:
   use_licensed: false            # true only on machines with the licensed CRU/MEPS workbook in data/raw/
   live_origin: "2026-09"
-  team_id: "team_TBD"
+  team_id: "team_01"              # X-HEC DSAIB 2025-27, team 1
   availability_file: config/availability.yaml

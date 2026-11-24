@@ -35,7 +35,10 @@ CANDIDATES = {"v1": {"cross": None, "model": "champion", "suffix": ""},
               "v2": {"cross": tuple(CROSS_V2), "model": "champion_v2", "suffix": "_v2"}}
 
 
-def main(team_id: str = "team_TBD", candidates: str = "v1"):
+TEAM_ID = "team_01"  # X-HEC DSAIB 2025-27, team 1
+
+
+def main(team_id: str = TEAM_ID, candidates: str = "v1"):
     opt = CANDIDATES[candidates]
     sfx = opt["suffix"]
     t_start = time.perf_counter()
