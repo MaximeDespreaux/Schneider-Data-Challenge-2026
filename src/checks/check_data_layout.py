@@ -64,10 +64,13 @@ def check() -> tuple[list[dict], list[str]]:
         f"put the epoxy file in {rel(RAW)}/ as 'Epoxy for student.xlsx' (or 'Epoxy_for_student.xlsx')")
 
     for name, what in [("LME_Copper_Aluminium_EU_Monthly_2016_2026.xlsx", "LME term structure and stocks (challenge)"),
-                       ("RMU_IQI_EU_Price_Benchmark_2017-2026_Synthetic.xlsx", "synthetic RMU price benchmark (challenge)"),
-                       ("Copia_de_Europe_Steel_INDEXES.xlsx", "LICENSED MEPS/CRU steel prices — never commit")]:
+                       ("RMU_IQI_EU_Price_Benchmark_2017-2026_Synthetic.xlsx", "synthetic RMU price benchmark (challenge)")]:
         p = RAW / name
         add(rel(p), True, p.exists(), what, f"put the file in {rel(RAW)}/ named exactly {name}")
+    from src.licensed import FILE_NAMES
+    st = next((RAW / n for n in FILE_NAMES if (RAW / n).exists()), None)
+    add(rel(st) if st else f"data/raw/{FILE_NAMES[0]}", True, st is not None,
+        "LICENSED MEPS/CRU steel prices — never commit", f"put the licensed steel workbook in {rel(RAW)}/ as {FILE_NAMES[0]!r}")
 
     # competitor teardowns (renamed or original name)
     td = RAW / "competitor_teardown_rm6_class.xlsx"

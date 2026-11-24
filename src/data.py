@@ -29,17 +29,7 @@ SCHNEIDER_RM_TARGETS = ["S01", "S02", "S03", "S04", "S05", "S07", "S08", "S09", 
 EXTRA_TARGETS = ["L01", "L02", "L03", "EP01", "EL01"]
 RM_TARGETS = SCHNEIDER_RM_TARGETS + EXTRA_TARGETS
 
-# Délais de publication (mois) — ce qui est connu à la date d'origine.
-PUBLICATION_LAG = {
-    **{s: 1 for s in ["S01", "S02", "S03", "S04", "S05", "D01", "D02"]},  # IMF via FRED
-    "S06": 0,
-    **{s: 2 for s in ["S07", "S08", "S09", "S10", "S11"]},  # Eurostat
-    **{s: 1 for s in ["S12", "S13"]},  # BLS
-    "L01": 1, "L02": 1, "L03": 1,  # MEPS / CRU
-    "EP01": 1,  # epoxy
-    "BR01": 1,  # laiton dérivé (D01, S05, S06)
-    "EL01": 2, "EL02": 2, "EL03": 2,  # Eurostat C26.1
-}
+# Publication lags live in config/availability.yaml (single source of truth).
 
 # Prix d'ancrage (EUR/kg, moyenne 2021) pour les matières suivies par un INDICE (base 2021=100).
 # HYPOTHÈSES à remplacer par les niveaux CRU/MEPS du workbook acier dès que possible.
@@ -79,7 +69,7 @@ def load_catalogs() -> tuple[pd.DataFrame, pd.DataFrame]:
     return rm, en
 
 
-def load_bom(version: str = "v2", rm6_carbon_share: float = 0.45) -> pd.DataFrame:
+def load_bom(version: str = "v2", rm6_carbon_share: float = 0.45, allow_deprecated: bool = False) -> pd.DataFrame:
     """BOM nettoyée, une ligne par (produit, matière).
 
     version="v2"   -> RM_Prices_XHEC_Challenge_v1.xlsx : **nouvelle BOM officielle** (envoyée par Schneider ~20 nov. ;
@@ -91,6 +81,9 @@ def load_bom(version: str = "v2", rm6_carbon_share: float = 0.45) -> pd.DataFram
     Anciennes versions seulement : la grosse part non étiquetée du RM6 est supposée en acier carbone
     (masse = rm6_carbon_share × masse totale implicite).
     """
+    if version == "csv" and not allow_deprecated:
+        raise ValueError("BOM csv is deprecated (see data/Data/BOM_SOURCE_OF_TRUTH.md); "
+                         "pass allow_deprecated=True for sensitivity only")
     if version == "csv":
         bom = pd.read_csv(PANEL / "bom_materials.csv")
     elif version == "root":
@@ -156,7 +149,27 @@ def load_rmu_price_benchmark() -> pd.DataFrame:
     return df
 
 
-def load_epoxy() -> pd.DataFrame:
+EPOXY_COLUMNS = ["EPX_BENZENE", "EPX_ACETONE", "EPX_ECH", "EPX_OTHER", "EPX_RESIN"]  # file order
+# Data corrections applied on load (documented, reversible with correct=False).
+EPOXY_CORRECTIONS = [{"month": "2026-05", "column": "EPX_ECH", "factor": 10,
+                      "reason": "decimal typo, resin left as delivered and flagged"}]
+
+
+def correct_epoxy(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply EPOXY_CORRECTIONS to a copy of ``df``; the list of applied corrections goes in ``attrs``."""
+    out = df.copy()
+    applied = []
+    for c in EPOXY_CORRECTIONS:
+        m = pd.Timestamp(c["month"] + "-01")
+        if c["column"] in out and m in out.index:
+            out.at[m, c["column"]] = out.at[m, c["column"]] * c["factor"]
+            applied.append(dict(c))
+    out.attrs["corrections"] = applied
+    return out
+
+
+def load_epoxy(correct: bool = True) -> pd.DataFrame:
+    """Epoxy cost build-up (EUR/t), month-start index, columns EPX_*. ECH May-2026 typo corrected (x10)."""
     path = RAW / "Epoxy for student.xlsx"
     if not path.exists():
         path = RAW / "Epoxy_for_student.xlsx"
@@ -167,12 +180,16 @@ def load_epoxy() -> pd.DataFrame:
     df = df.rename(columns={df.columns[0]: "date"})
     df = df.drop(columns=[c for c in df.columns if str(c).startswith("Unnamed")])
     df["month"] = pd.to_datetime(df["date"]).dt.to_period("M").dt.to_timestamp()
-    return df.set_index("month").drop(columns="date")
+    df = df.set_index("month").drop(columns="date")
+    if len(df.columns) != len(EPOXY_COLUMNS):
+        raise ValueError(f"epoxy file: expected {len(EPOXY_COLUMNS)} columns, got {list(df.columns)}")
+    df.columns = EPOXY_COLUMNS
+    return correct_epoxy(df) if correct else df
 
 
 def load_epoxy_series() -> pd.Series:
     """Prix mensuel de la résine epoxy (EUR/t), série ``EP01`` indexée au début de mois."""
-    s = pd.to_numeric(load_epoxy()["EPOXY_RESIN_EUR per TON"], errors="coerce").astype(float)
+    s = pd.to_numeric(load_epoxy()["EPX_RESIN"], errors="coerce").astype(float)
     s = s.groupby(level=0).mean().sort_index()
     s.index.name = "month"
     return s.rename("EP01")
@@ -188,40 +205,11 @@ def _num(v) -> float:
 
 
 def load_licensed_steel() -> pd.DataFrame:
-    """Prix acier sous licence (MEPS / CRU), EUR/t, remplissent les colonnes vides L01-L03 du panel.
-
-    L01 = MEPS Allemagne CR coil ; L02 = CRU Allemagne 304 CR-2mm (base + surcharge alliage) ;
-    L03 = MEPS Allemagne HDG coil. Fichier sous licence : jamais commité.
-    """
-    import openpyxl
-
-    path = RAW / "Copia_de_Europe_Steel_INDEXES.xlsx"
-    if not path.exists():
-        raise FileNotFoundError(f"Fichier acier MEPS/CRU introuvable : {path} (fichier sous licence, à placer en local)")
-    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    try:
-        meps, cru = [], []
-        for r in wb["MEPS"].iter_rows(min_row=6, values_only=True):
-            if len(r) < 4 or not isinstance(r[0], datetime):
-                continue
-            meps.append({"month": r[0], "L01": _num(r[2]), "L03": _num(r[3])})
-        for r in wb["CRU Stainless"].iter_rows(min_row=6, values_only=True):
-            if len(r) < 3 or not isinstance(r[0], datetime):
-                continue
-            base, alloy = _num(r[1]), _num(r[2])
-            cru.append({"month": r[0], "L02": base + alloy})  # NaN dès qu'un des deux manque
-    finally:
-        wb.close()
-
-    def _monthly(rows, cols):
-        df = pd.DataFrame(rows, columns=["month", *cols])
-        df["month"] = pd.to_datetime(df["month"]).dt.to_period("M").dt.to_timestamp()
-        return df.groupby("month")[cols].mean()
-
-    out = _monthly(meps, ["L01", "L03"]).join(_monthly(cru, ["L02"]), how="outer")
-    out = out[["L01", "L02", "L03"]].astype(float).sort_index().dropna(how="all")
-    out.index.name = "month"
-    return out
+    """Prix acier sous licence (MEPS / CRU), EUR/t : L01 = MEPS DE CR coil, L02 = CRU DE 304 CR-2mm (base +
+    surcharge), L03 = MEPS DE HDG coil, L01_FR = MEPS FR CR coil (usine RM6). Lecture par en-têtes
+    (``src.licensed``). Fichier sous licence : jamais commité, jamais dans le CSV."""
+    from src.licensed import load_licensed
+    return load_licensed()
 
 
 TEARDOWN_LINE = re.compile(r"^\s{2}(?P<material>[^—]+?)\s—\s(?P<grams>[\d\s]+)\sg")

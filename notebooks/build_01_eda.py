@@ -127,12 +127,12 @@ md("""**Lecture.** Les meilleures relations avec k ≥ 1 sont exploitables comme
 Attention au k = 0 : utile pour le *nowcast* des mois non publiés, mais pas comme feature future.""")
 
 md("## 5. Exposition des deux produits (BOM × prix)")
-code("""bom = pd.concat([d.load_bom("csv"), d.load_bom("root")])
+code("""bom = pd.concat([d.load_bom("csv", allow_deprecated=True), d.load_bom("root")])
 bom.pivot_table(index=["product", "material_family"], columns="bom_version", values="mass_kg").round(1)""")
 md("""Deux versions de BOM en conflit (data.zip vs xlsx racine) ; RM6 : la part non étiquetée (~45 %) est supposée acier carbone.
 Les matières suivies par indice sont converties en EUR/kg via un **prix d'ancrage 2021** (`src/data.py`, hypothèse à
 remplacer par les niveaux CRU/MEPS).""")
-code("""costs = {v: d.bom_cost(rm.ffill(), d.load_bom(v)) for v in ["csv", "root"]}
+code("""costs = {v: d.bom_cost(rm.ffill(), d.load_bom(v, allow_deprecated=True)) for v in ["csv", "root"]}
 tot = pd.concat({v: c.groupby(["month", "product"]).cost_eur.sum().unstack() for v, c in costs.items()}, axis=1)
 fig, axes = plt.subplots(1, 2, figsize=(15, 4.5))
 for ax, p in zip(axes, ["RM6", "AirSeT"]):

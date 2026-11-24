@@ -33,3 +33,18 @@ def test_driver_ridge_with_driver_and_without():
     # a target absent from DRIVERS still gets forecasts, from its own features only
     _check(model.forecast(panel["Z"], [3, 6, 9], exog=panel))
     assert set(model._features(panel["Z"], panel, "Z").columns) == {"own_d1", "own_d3", "own_dev12"}
+
+
+def test_driver_ridge_trains_before_a_driver_exists():
+    import numpy as np
+    import pandas as pd
+    from src.testbench.driver_models import DriverRidge
+    rng = np.random.default_rng(0)
+    idx = pd.date_range("2000-01-01", periods=180, freq="MS")
+    y = pd.Series(100 * np.exp(np.cumsum(rng.normal(0, .02, 180))), index=idx, name="S09")
+    exog = pd.DataFrame({"S09": y, "S04": 50 * np.exp(np.cumsum(rng.normal(0, .05, 180))),
+                         "L01": np.nan}, index=idx)
+    # L01 is a column of the panel but has no value yet at this origin (licensed steel before 2012)
+    m = DriverRidge(drivers={"S09": ["S04", "L01"]})
+    out = m.forecast(y, [3], exog=exog)
+    assert not np.isclose(out.p50.iloc[0], y.iloc[-1])  # a model was fitted (not the no-data fallback)

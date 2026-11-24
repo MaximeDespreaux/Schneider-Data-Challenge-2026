@@ -40,10 +40,33 @@ def _dlog(s: pd.Series, k: int) -> pd.Series:
     return np.log(s.where(s > 0)).diff(k)
 
 
-def make_features(info: pd.DataFrame, target: str, cross=None) -> pd.DataFrame:
+# Extended set (champion_wf2): licensed market price vs index gap (Report 3's strongest signal: the EU index catches
+# up with coil prices), and regime-gated momentum / mean reversion.
+LIC_TWIN = {"S09": "L01", "S10": "L03", "S12": "L01", "RM6_NE_IQI_433520": "L01", "RMAirSeT_IIQ_24kV_IEC": "L01",
+            "L01": "S09", "L03": "S10", "L02": "S09"}
+
+
+def _extended(info: pd.DataFrame, target: str, ly: pd.Series) -> dict:
+    f = {}
+    twin = LIC_TWIN.get(target)
+    if twin and twin in info and info[twin].notna().any():
+        gap = ly - np.log(info[twin].where(info[twin] > 0)).reindex(ly.index)
+        f["lic_gap"] = gap
+        f["lic_gap_dev24"] = gap - gap.rolling(24, min_periods=18).mean()
+    d3 = ly.diff(3)
+    dev24 = ly - ly.rolling(24, min_periods=18).mean()
+    # "overextended" = |dev24| above its own 80th percentile over the past 10 years (causal, rolling)
+    hot = (dev24.abs() > dev24.abs().rolling(120, min_periods=60).quantile(0.8)).astype(float).where(dev24.notna())
+    f["mom_calm"] = d3 * (1 - hot)
+    f["dev_hot"] = dev24 * hot
+    return f
+
+
+def make_features(info: pd.DataFrame, target: str, cross=None, extended: bool = False) -> pd.DataFrame:
     """Toutes les features candidates pour ``target``, indexées comme ``info`` (valeurs à t calculées sur ≤ t).
 
-    ``cross`` : liste des séries « cross_* » candidates (None -> CROSS, la v1)."""
+    ``cross`` : liste des séries « cross_* » candidates (None -> CROSS, la v1). ``extended`` : ajoute l'écart
+    prix de marché sous licence / indice et les features de régime (champion_wf2)."""
     cross = CROSS if cross is None else cross
     y = info[target]
     ly = np.log(y.where(y > 0))
@@ -86,4 +109,6 @@ def make_features(info: pd.DataFrame, target: str, cross=None) -> pd.DataFrame:
     for c in ["X_CU_STOCKS", "X_AL_STOCKS"]:
         if c in info:
             f[c.lower().replace("x_", "") + "_d3"] = _dlog(info[c], 3)
+    if extended:
+        f.update(_extended(info, target, ly))
     return pd.DataFrame(f, index=info.index)

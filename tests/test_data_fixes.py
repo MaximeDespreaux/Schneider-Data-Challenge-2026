@@ -50,15 +50,15 @@ def test_load_licensed_steel(tmp_path, monkeypatch):
     junk = [("MEPS LOW", "Germany"), ("x",), ("x",), ("x",)]
     _sheet(wb, "MEPS", junk + [
         ("Month", "HR coil", "CR coil", "HDG coil", "EG coil"),
-        (datetime(2026, 7, 1), 600, 780, 770, 800),
-        (datetime(2026, 8, 1), 610, "-", 800, 810),
+        (datetime(2026, 7, 1), 11, 101, 201, 301),  # fake values
+        (datetime(2026, 8, 1), 12, "-", 202, 302),
         ("note", 1, 2, 3, 4),  # pas une date -> ignorée
-        (datetime(2026, 9, 1), 620, 0, 0, 820),
+        (datetime(2026, 9, 1), 13, 103, 203, 303),
     ])
-    _sheet(wb, "CRU Stainless", junk + [
+    _sheet(wb, "CRU Stainless", [("CRU Stainless", "Germany"), ("x", "Grade 304"), ("x",), ("x",)] + [
         ("Month", "BASE", "Alloy"),
-        (datetime(2026, 7, 15), 500, 2200),
-        (datetime(2026, 8, 15), 500, 2228),
+        (datetime(2026, 7, 15), 40, 50),
+        (datetime(2026, 8, 15), 41, 51),
         (datetime(2026, 9, 15), None, None),
     ])
     wb.save(tmp_path / "Copia_de_Europe_Steel_INDEXES.xlsx")
@@ -68,10 +68,10 @@ def test_load_licensed_steel(tmp_path, monkeypatch):
     assert list(s.columns) == ["L01", "L02", "L03"]
     assert s.index.name == "month"
     assert list(s.index) == list(pd.date_range("2026-07-01", "2026-09-01", freq="MS"))
-    assert s.at[pd.Timestamp("2026-08-01"), "L02"] == 500 + 2228
+    assert s.at[pd.Timestamp("2026-08-01"), "L02"] == 41 + 51
     assert np.isnan(s.at[pd.Timestamp("2026-08-01"), "L01"])  # cellule '-'
     assert np.isnan(s.at[pd.Timestamp("2026-09-01"), "L02"])  # pas encore publié
-    assert s.at[pd.Timestamp("2026-09-01"), "L03"] == 0
+    assert s.at[pd.Timestamp("2026-09-01"), "L03"] == 203
     assert all(s.dtypes == float)
 
 
