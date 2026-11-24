@@ -1,6 +1,6 @@
-"""Run the three "Olivier gaps" modules in order and time each.
+"""Run the three clarification modules in order and time each.
 
-    uv run python -m src.business.olivier_gaps.run
+    uv run python -m src.business.clarifications.run
 
 (``src.business.run_all`` also runs them, after ``suppliers``, and puts them in REPORT.md.)
 """
@@ -19,9 +19,9 @@ def run(cfg: dict | None = None) -> dict:
     cfg = load_business_config() if cfg is None else cfg
     results = {}
     for name in MODULES:
-        print(f"--- olivier_gaps.{name}")
+        print(f"--- clarifications.{name}")
         t0 = time.perf_counter()
-        head = importlib.import_module(f"src.business.olivier_gaps.{name}").run(cfg)
+        head = importlib.import_module(f"src.business.clarifications.{name}").run(cfg)
         dt = time.perf_counter() - t0
         results[name] = {"runtime_s": round(dt, 2), **head}
         print(f"    OK ({dt:.1f} s)")

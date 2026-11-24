@@ -89,3 +89,9 @@ Written before the graded run. Committed and tagged together with the code that 
   - In realtime mode, a masked BOM component is carried flat to the origin, which makes BOM-index bands slightly narrow (conservative, not leaky).
   - The Kupiec test pools hits across a group's series, so its p-values are too confident; it is reported only.
   - The canaries run on the assembled panel (identity `prepare`), so panel construction itself is covered by the truncation tests of the loaders and the BOM deriver, not by the canaries.
+
+## Note added on 2026-11-24 (after the text above, which is unchanged)
+
+- **Submitted model.** The text above names `wf_blend`. The code submits `champion_wf` (`src/testbench/candidates.py`, whose comment dates the decision to 2026-11-22, before grading, on dev evidence). This change had not been recorded here.
+- **RM6 carbon steel.** Until this date the regional steel price was not listed as a EUR/t series, so RM6 steel was valued at the config price (base month 2026-09) at every past origin. "Weights fixed at t" was therefore not true for that component, in the RM6 index and in the margin replay. Any graded run made before the fix must be re-run under a new tag and reported as a second look.
+- **Meta pass.** In submission mode, series masked by a live gap (licensed and extra inputs) were treated as realised one or more months early. The submitted model is not a meta model.

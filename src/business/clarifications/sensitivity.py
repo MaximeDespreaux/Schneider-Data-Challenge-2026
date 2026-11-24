@@ -1,6 +1,6 @@
 """Gap 2 — how sensitive are the results to the unidentified BOM mass and to the proxies?
 
-    uv run python -m src.business.olivier_gaps.sensitivity
+    uv run python -m src.business.clarifications.sensitivity
 
 Per product (RM6, AirSeT), four numbers:
 - ``bom_value_eur``     : priced BOM value per box at the base month (``bom_weights()``: kg × EUR/kg);
@@ -20,7 +20,7 @@ Base case = current setup (BOM from config/assumptions.yaml, unidentified mass N
 4. ``bom_version`` (setting "BOM v1 (data note)"): the previous BOM xlsx_v1 (if data/raw/RM_Prices_XHEC_Challenge.xlsx exists), plus
    bom_version_diff.csv (kg per product × material family in v1 vs v2). It is a data note, not a sensitivity: it
    stays in sensitivity.csv and the tornado but is excluded from the ``largest_swing`` headline.
-Outputs in data/outputs/business/olivier_gaps/ (gitignored) and figure olivier_sensitivity_tornado.png.
+Outputs in data/outputs/business/clarifications/ (gitignored) and figure sensitivity_tornado.png.
 """
 
 from __future__ import annotations
@@ -174,7 +174,7 @@ def _figure(tab: pd.DataFrame, products: list) -> None:
         ax.legend(fontsize=8)
     fig.suptitle("Sensitivity to unidentified mass and proxies (one scenario at a time)")
     fig.tight_layout()
-    fig.savefig(fig_dir() / "olivier_sensitivity_tornado.png", dpi=150)
+    fig.savefig(fig_dir() / "sensitivity_tornado.png", dpi=150)
     plt.close(fig)
 
 
@@ -184,7 +184,7 @@ def run(cfg: dict | None = None) -> dict:
     from ..forecasts import get_origin_forecasts
 
     cfg = load_business_config() if cfg is None else cfg
-    sens = cfg["olivier_gaps"]["sensitivity"]
+    sens = cfg["clarifications"]["sensitivity"]
     a = load_assumptions()
     prices = selling_prices(a, cfg)
     ctx = context(a, cfg, get_origin_forecasts(cfg))

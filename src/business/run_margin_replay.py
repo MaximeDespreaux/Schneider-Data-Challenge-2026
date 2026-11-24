@@ -71,7 +71,7 @@ def base_forecasts(panel, der, cached: bool) -> pd.DataFrame:
     edge = ragged_edge_lags(panel, "2026-09-01", exempt=exempt)
     fc = run_backtest(panel, list(TARGET_IDS.values()), candidates(),
                       origins=pd.date_range("2010-01-01", "2026-09-01", freq="MS"), derive=der, lags=edge, verbose=False)
-    meta, diag = meta_pass(fc, MetaConfig(), "submission")
+    meta, diag = meta_pass(fc, MetaConfig(), "submission", lags=edge)
     fc = pd.concat([fc, meta], ignore_index=True)
     OUT.mkdir(parents=True, exist_ok=True)
     fc.to_parquet(path)

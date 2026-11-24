@@ -103,11 +103,12 @@ class ChampionWF:
     max_keep: int = 6
     name: str = "champion_wf"
     extended: bool = False  # champion_wf2: + licensed market-vs-index gap and regime features
+    cross: tuple | None = None  # candidate cross_* series (None -> features.CROSS)
 
     def forecast(self, y, steps, exog=None):
-        sel = screen_at(exog, y.name, max_keep=self.max_keep, extended=self.extended)
+        sel = screen_at(exog, y.name, max_keep=self.max_keep, extended=self.extended, cross=self.cross)
         return Champion(selected=sel, min_signals=self.min_signals, name=self.name,
-                        extended=self.extended).forecast(y, steps, exog=exog)
+                        cross=self.cross, extended=self.extended).forecast(y, steps, exog=exog)
 
 
 @dataclass

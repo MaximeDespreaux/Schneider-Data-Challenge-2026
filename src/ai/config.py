@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "data" / "outputs" / "ai"          # private outputs (git-ignored, data/*)
 PUBLIC_OUT = ROOT / "public" / "ai"             # NDA-safe outputs (scanned by public/scan_leaks.py)
 
+TEAM_ID = "team_01"             # same as src/external/run_champion.py
 HORIZONS = (3, 6, 9)
 QUANTILES = (0.1, 0.5, 0.9)
 BACKTEST_START = "2020-01-01"   # same origins as notebooks/02 and src/backtest.py
