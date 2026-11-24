@@ -21,12 +21,15 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from . import config as C
 from . import guard
 
-load_dotenv(C.ROOT / ".env")
+try:
+    from dotenv import load_dotenv
+except ImportError:  # only in the ``ai`` dependency group; without it, plain environment variables are used
+    pass
+else:
+    load_dotenv(C.ROOT / ".env")
 
 PROVIDER = os.getenv("AI_PROVIDER", "ollama")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
@@ -37,6 +40,16 @@ BUDGET_USD = float(os.getenv("AI_BUDGET_USD", "5"))
 LOG = C.OUT / "llm_log.jsonl"
 CACHE = C.OUT / "llm_cache"
 PRICE_PER_MTOK = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-5-5": (0.10, 0.50)}
+
+
+def model_in_use() -> str:
+    return OLLAMA_MODEL if PROVIDER == "ollama" else MODEL
+
+
+def _same_model(answered: str, requested: str) -> None:
+    """The clean window depends on which model answered: refuse (and do not cache) an answer from another one."""
+    if answered != requested:
+        raise RuntimeError(f"asked {requested}, answered by {answered}: not used (its release date would be wrong)")
 
 
 def spent_usd() -> float:
@@ -112,13 +125,14 @@ def ask(prompt: str, system: str = "", schema: dict | None = None, tag: str = ""
     if schema:
         kw["output_config"]["format"] = {"type": "json_schema", "schema": schema}
     t0 = time.perf_counter()
-    # Server-side fallback: on a policy refusal the API re-runs the request on a fallback model in the same call.
-    resp = client.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kw)
+    # No server-side fallback on purpose: another model's answer would not match the registered release date.
+    resp = client.messages.create(**kw)
     runtime = time.perf_counter() - t0
     if resp.stop_reason == "refusal":
         raise RuntimeError(f"model refused ({getattr(resp.stop_details, 'category', None)}): {tag}")
     if resp.stop_reason == "max_tokens":
         raise RuntimeError(f"response truncated at max_tokens={max_tokens}: {tag}")
+    _same_model(resp.model, model)
     text = next(b.text for b in resp.content if b.type == "text")
     output = json.loads(text) if schema else text
     _record(cached, dict(provider=provider, tag=tag, model=resp.model, request_id=resp._request_id, system=system,

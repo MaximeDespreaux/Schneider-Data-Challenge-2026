@@ -2,7 +2,8 @@
 
 Same model (``models.dynreg_predict``: ridge, no intercept, shrunk to the random walk), same origins, same
 drivers, with and without the accepted (formula, target) pairs from ``agent_features``. The formulas were
-screened on targets before 2024, so only target months from 2024 on are reported (the earlier rows are in-sample).
+screened on targets before 2024, so only ORIGINS from 2024 on are reported (a forecast made in 2023 would use a
+feature chosen with outcomes it could not know). Rows after the LLM's release are also shown separately.
 
     uv run --group ai python -m src.ai.agent_eval
 """
@@ -20,6 +21,7 @@ from src import models as mo
 from . import backtest as ab
 from . import config as C
 from . import feature_dsl as dsl
+from . import llm
 from .agent_features import OUT
 
 
@@ -70,13 +72,15 @@ def run(start: str = C.BACKTEST_START, acc: pd.DataFrame | None = None,
     res = bt.attach_truth(pd.DataFrame(rows), T)
     for m in ("naive", "dynreg", label):
         res = bt.add_conformal(res, m)
-    late = res.target_month >= pd.Timestamp(C.SELECTION_SPLIT)
+    late = res.origin >= pd.Timestamp(C.SELECTION_SPLIT)
     touched = res.series.isin(extra)
-    out = pd.concat({
-        "all targets, 2024 on": ab.compare(res, ["dynreg", label], late),
-        "targets with the extra features, 2024 on": ab.compare(res, ["dynreg", label], late & touched),
-    }, names=["window"])
-    per = pd.concat({s: ab.compare(g, ["dynreg", label], g.target_month >= pd.Timestamp(C.SELECTION_SPLIT))
+    windows = {"all targets, origins 2024 on": late, "targets with the extra features, origins 2024 on": late & touched}
+    released = C.llm_released(llm.model_in_use())
+    if released is not None:
+        windows["targets with the extra features, after the LLM's release"] = late & touched & (res.target_month > released)
+    out = pd.concat({k: t for k, w in windows.items() if not (t := ab.compare(res, ["dynreg", label], w)).empty},
+                    names=["window"])
+    per = pd.concat({s: ab.compare(g, ["dynreg", label], g.origin >= pd.Timestamp(C.SELECTION_SPLIT))
                      for s, g in res[touched].groupby("series")}, names=["series"])
     return out, per
 

@@ -10,6 +10,7 @@ from scipy import stats
 from . import features as fe
 from . import models as mo
 
+MAX_LAG = 2  # largest publication lag among the targets (months), used as a cheap pre-filter
 SHOCK = (pd.Timestamp("2021-01-01"), pd.Timestamp("2022-12-01"))
 
 
@@ -95,13 +96,14 @@ def add_ensemble(res: pd.DataFrame, members=("ets", "arima", "theta", "dynreg", 
 
 
 def add_conformal(res: pd.DataFrame, model: str, alpha: float = 0.2, min_resid: int = 12) -> pd.DataFrame:
-    """Online split-conformal interval: at each origin use only residuals already realised
-    (target_month <= origin) for that series & horizon; pooled over series if too few."""
+    """Online split-conformal interval: at each origin use only residuals already realised AND published
+    (``features.published_by``) for that series & horizon; pooled over series if too few."""
     r = res[res.model == model].copy().sort_values("origin")
     r["resid"] = r.actual - r.pred
     lo, hi = [], []
     for _, row in r.iterrows():
-        past = r[(r.h == row.h) & (r.target_month <= row.origin)]
+        past = r[(r.h == row.h) & (r.target_month <= row.origin + pd.DateOffset(months=MAX_LAG))]
+        past = past[fe.published_by(past.target_month, past.series, row.origin, row.series)]
         own = past[past.series == row.series].resid
         pool = own if len(own) >= min_resid else past.resid
         if len(pool) < min_resid:

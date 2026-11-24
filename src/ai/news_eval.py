@@ -3,9 +3,9 @@
 For each material signal and each of its targets:
 1. Screen (pre-2024 targets only, same rules as the agent's features) for: LLM score, its 3-month mean, GDELT tone,
    tone 3-month change.
-2. dynreg with vs without the signal on 2024-26, for the LLM signal and for the tone baseline separately.
+2. dynreg with vs without the signal (origins from 2024 on), for the LLM signal and for the tone baseline separately.
 Headlines of month m are known at the end of month m, the same time as the month-m price: no extra shift.
-The LLM may have seen how 2024-25 unfolded; results are also given after its release date.
+The LLM may have seen how 2024-25 unfolded; ``agent_eval.run`` adds the rows after its release as a separate window.
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def main() -> None:
     for label, (summary, per) in dynreg_tables().items():
         summary.to_csv(OUT / f"{label}_summary.csv")
         per.to_csv(OUT / f"{label}_per_series.csv")
-        print(f"\n=== {label} vs dynreg, 2024 on (rel* vs naive)\n", summary.round(3))
-    rel = C.LLMS[llm.OLLAMA_MODEL if llm.PROVIDER == "ollama" else llm.MODEL]["released"]
-    print(f"\nnote: the LLM ({llm.OLLAMA_MODEL if llm.PROVIDER == 'ollama' else llm.MODEL}) was released {rel}; "
-          "2024 targets may be contaminated.")
+        print(f"\n=== {label} vs dynreg, origins 2024 on (rel* vs naive)\n", summary.round(3))
+    rel = C.llm_released(llm.model_in_use())
+    print(f"\nnote: the LLM ({llm.model_in_use()}) was released {rel:%Y-%m-%d}; earlier targets may be contaminated."
+          if rel is not None else f"\nnote: no verified release date for {llm.model_in_use()}: no clean window.")

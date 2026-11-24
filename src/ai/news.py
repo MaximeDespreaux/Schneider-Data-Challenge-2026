@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import time
 import urllib.parse
@@ -68,7 +69,8 @@ def _get(params: dict) -> dict | None:
 
 
 def _months(start: str = START) -> pd.DatetimeIndex:
-    return pd.date_range(start, pd.Timestamp.today().normalize().replace(day=1), freq="MS")
+    """Complete months only: the running month would be stored half-empty and never fetched again."""
+    return pd.date_range(start, pd.Timestamp.today().normalize().replace(day=1) - pd.DateOffset(months=1), freq="MS")
 
 
 def fetch(max_records: int = 75) -> None:
@@ -122,6 +124,7 @@ def tone() -> pd.DataFrame:
 
 
 # --------------------------------------------------------------------------------------------- LLM scoring
+YEAR = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)|['’]\d{2}(?!\d)|(?<=FY)\d{2}(?!\d)")
 SCHEMA = {"type": "object", "properties": {m: {"type": "object", "properties": {
     "score": {"type": "integer", "enum": [-2, -1, 0, 1, 2]}, "reason": {"type": "string"}},
     "required": ["score", "reason"], "additionalProperties": False} for m in QUERIES},
@@ -132,10 +135,15 @@ SYSTEM = ("You are a commodity market analyst. From news headlines only, judge t
           "costs and capacity changes. Use only the headlines given; if they are irrelevant or few, answer 0.")
 
 
+def _no_year(title: str) -> str:
+    """Headlines often carry a year ("2022 outlook", "Q3 '21", "FY2023"), which would reveal the date."""
+    return YEAR.sub("[year]", title)
+
+
 def _prompt(month_titles: dict[str, list[str]], k: int = 25) -> str:
     parts = []
     for mat, titles in month_titles.items():
-        lines = "\n".join(f"- {t}" for t in titles[:k]) or "- (no headlines)"
+        lines = "\n".join(f"- {_no_year(t)}" for t in titles[:k]) or "- (no headlines)"
         parts.append(f"## {mat.replace('_', ' / ')}\n{lines}")
     return "Headlines from one month (date withheld):\n\n" + "\n\n".join(parts)
 
@@ -143,7 +151,7 @@ def _prompt(month_titles: dict[str, list[str]], k: int = 25) -> str:
 def score(limit: int | None = None) -> pd.DataFrame:
     path = DIR / "llm_scores.parquet"
     heads = {m: pd.read_parquet(DIR / f"{m}.parquet") for m in QUERIES}
-    months = sorted(set().union(*[set(h.month) for h in heads.values()]))[:limit]
+    months = sorted(set().union(*[set(h.month) for h in heads.values()]) & set(_months()))[:limit]
     rows = []
     for i, m in enumerate(months):
         titles = {mat: h[(h.month == m) & h.title.notna()].title.drop_duplicates().tolist() for mat, h in heads.items()}

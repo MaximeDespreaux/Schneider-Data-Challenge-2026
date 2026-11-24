@@ -15,7 +15,8 @@ Ops (all strictly backward-looking: shifts are positive, windows trail):
     lag(x, k)         x_{t-k}
     ratio(a, b)       a / b
     spread(a, b)      a - b
-    dev_ma(x, k)      log(x_t) - log(mean(x_{t-k+1..t})); plain x_t - mean if x has values <= 0 (spreads)
+    dev_ma(x, k)      log(x_t) - log(mean(x_{t-k+1..t})) for prices and ratios of prices; plain x_t - mean for
+                      anything else (spreads, changes...). Decided from the formula, never from the data.
     zscore(x, k)      (x_t - mean_k) / std_k over the trailing k months
     vol(x, k)         std of monthly dlog over the trailing k months
 
@@ -95,6 +96,16 @@ def leaves(formula: str) -> set[str]:
 
 
 # --------------------------------------------------------------------------------------------- compile
+def _is_price(n: ast.AST) -> bool:
+    """Price-like expression (a series, its lag, or a ratio of prices), read from the formula only. Testing the sign
+    of the whole series instead would let future values decide how past ones are computed."""
+    if isinstance(n, ast.Name):
+        return True
+    if isinstance(n, ast.Call) and n.func.id in ("lag", "ratio"):
+        return all(_is_price(a) for a in n.args if not isinstance(a, ast.Constant))
+    return False
+
+
 def compile_feature(formula: str, target: str, targets: pd.DataFrame, exog: pd.DataFrame) -> pd.Series:
     """Monthly feature for ``target``; value at t uses only data published by t."""
     tree = parse(formula)
@@ -105,6 +116,8 @@ def compile_feature(formula: str, target: str, targets: pd.DataFrame, exog: pd.D
             return targets[target]
         if name not in panel:
             raise FormulaError(f"series '{name}' not in the local panel")
+        if not fe.has_declared_lag(name):
+            raise FormulaError(f"series '{name}' has no declared publication lag")
         return panel[name].shift(fe._shift_for(name, target))
 
     def ev(n: ast.AST):
@@ -126,7 +139,7 @@ def compile_feature(formula: str, target: str, targets: pd.DataFrame, exog: pd.D
             return x - args[1]
         if op == "dev_ma":
             m = x.rolling(k, min_periods=max(2, k // 2)).mean()
-            return logx(x) - logx(m) if (x.dropna() > 0).all() else x - m
+            return logx(x) - logx(m) if _is_price(n.args[0]) else x - m
         if op == "zscore":
             r = x.rolling(k, min_periods=max(3, k // 2))
             return (x - r.mean()) / r.std().replace(0, np.nan)
