@@ -84,6 +84,7 @@ The clean window for Chronos-2 is 12 target months only: overlapping forecasts, 
 ```bash
 uv sync --group ai                                             # torch + chronos-forecasting
 make ai                                                        # backtest + live forecast (~1 min; needs the NDA data)
+make ai-plots                                                  # figures of the scores and the live forecast -> data/outputs/ai/figures/ (private)
 uv run --group ai --with pytest python -m pytest -q tests/       # tests (guard tests skip without the NDA data)
 cp .env.example .env    # then fill ANTHROPIC_API_KEY (phases 2-4); .env is git-ignored
 uv run --group ai python -m src.ai.llm                           # connectivity check (a few tokens)
@@ -100,6 +101,7 @@ Outputs (private, `data/outputs/ai/`): `ai_backtest.parquet`, `ai_scores_*.csv`,
 | `foundation.py` | Inputs cut at the forecast date, batched local inference, adapter to the team test bench |
 | `backtest.py` | AI rows in the `src/backtest.py` format; CQR, averaging, hybrid / quantile-average combinations, comparison, pre-registered selection |
 | `run.py` | One command: backtest → selection → live forecast → CSV, licences, compute |
+| `plots.py` | `make ai-plots`: PNG figures from the outputs of `run.py` (nothing is re-run; licensed series in separate files) |
 | `guard.py` | NDA gate: public-series allow-list + deny-list text check (shared with `public/scan_leaks.py`) |
 | `feature_dsl.py` | Formula language for LLM-proposed features: parser, leak-free compiler, notebook-03 screen |
 | `agent_features.py` | Phase 2 loop: Claude proposes formulas, the local screen decides, feedback is coarse buckets only |
