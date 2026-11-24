@@ -45,6 +45,11 @@ material_series_eurostat:           # used only if steel_price_source = eurostat
   stainless_steel:  {series: S09}
   galvanised_steel: {series: S10}
 
+# Regional price index per plant (Schneider: "take care of region index evolution"). Overrides material_series
+# for one product. RM6 is built in France (REDACTED) -> MEPS France CR coil; AirSeT (Hungary) keeps Germany (L01).
+material_series_by_product:
+  RM6: {carbon_steel: L01_FR}
+
 # ---------------------------------------------------------------------
 # 3. BOM (bill of materials)
 # ---------------------------------------------------------------------
@@ -230,3 +235,12 @@ open_questions:
   - "Typical margin, or material share of selling price, for RM6 and AirSeT?"
   - "Roughly what EUR of electronics/sensors are in a base RM6 and a base RM AirSeT?"
   - "How does sales segment customers (tiers / deal sizes) when deciding discounts?"
+
+# ---------------------------------------------------------------------
+# 9. Backtest (src/testbench) - added 2026-11-19, no licensed values
+# ---------------------------------------------------------------------
+backtest:
+  use_licensed: false            # true only on machines with the licensed CRU/MEPS workbook in data/raw/
+  live_origin: "2026-09"
+  team_id: "team_TBD"
+  availability_file: config/availability.yaml

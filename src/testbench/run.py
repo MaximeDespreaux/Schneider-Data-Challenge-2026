@@ -25,32 +25,12 @@ from .backtest import compute_footprint, default_origins, run_backtest
 from .models import baseline_models
 
 
-def build_panel(with_bom: bool = False):
-    """Panel matières + énergie. Les indices BOM ne sont PAS ajoutés ici par défaut : dans le backtest ils sont
-    reconstruits à chaque origine (``bom_deriver``) pour ne jamais utiliser des poids du futur."""
-    rm = d.load_rm_wide()
-    en = d.load_energy_wide()
-    panel = rm.join(en, how="left")
-    # laiton dérivé (EUR/t) : ≈ 63 % cuivre + 37 % zinc (S05 en USD/t, S06 = USD par EUR). Pas une cible.
-    panel["BR01"] = 0.63 * panel["D01"] + 0.37 * panel["S05"] / panel["S06"]
-    try:  # acier sous licence MEPS/CRU -> colonnes L01-L03 (vides dans le panel du challenge)
-        steel = d.load_licensed_steel()
-        for c in ["L01", "L02", "L03"]:
-            panel[c] = steel[c].reindex(panel.index)
-    except FileNotFoundError as e:
-        warnings.warn(f"{e} -> l'acier retombe sur les indices Eurostat (S09/S10).", stacklevel=2)
-    try:
-        panel["EP01"] = d.load_epoxy_series().reindex(panel.index)
-    except FileNotFoundError as e:
-        warnings.warn(f"{e} -> pas de série epoxy EP01.", stacklevel=2)
-    ppi = d.RAW / "external" / "eurostat_ppi_long.csv"
-    eu = pd.read_csv(ppi, index_col=0, parse_dates=True) if ppi.exists() else pd.DataFrame()
-    for c in ["EL01", "EL02", "EL03"]:
-        if c in eu:
-            panel[c] = eu[c].reindex(panel.index)
-    if "EL01" not in eu:
-        warnings.warn("EL01 absent : run `uv run python -m src.external.fetch_public` to download the electronics "
-                      "price index", stacklevel=2)
+def build_panel(with_bom: bool = False, use_licensed: bool = True):
+    """Panel matières + énergie + séries ajoutées (BR01, L01-L03, EP01, EL01-03), sans historique long ni signaux
+    externes. Délègue à ``panel.base_panel`` (constructeur unique). Les indices BOM ne sont PAS ajoutés par défaut :
+    dans le backtest ils sont reconstruits à chaque origine (``bom_deriver``)."""
+    from .panel import base_panel
+    panel = base_panel(use_licensed=use_licensed)
     if with_bom:
         from .targets import add_bom_indices
         panel, _ = add_bom_indices(panel)

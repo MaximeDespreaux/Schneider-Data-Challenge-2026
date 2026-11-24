@@ -44,12 +44,6 @@ EXTERNAL = {  # colonne FRED -> nom du signal
     "PALLFNFINDEXM": "X_IMF_ALLCOMMOD",
 }
 
-# délais de publication des signaux (mois) pour le mode realtime du banc
-EXTERNAL_LAGS = {**{v: 1 for v in EXTERNAL.values()}, "X_VIX": 0, "X_OVX": 0, "X_USD_BROAD": 0, "X_US_BREAKEVEN": 0,
-                 "X_US_10Y": 0, "X_GSCPI": 1, "X_GLOBAL_EPU": 2, "X_CU_TERM": 0, "X_AL_TERM": 0,
-                 "X_CU_STOCKS": 0, "X_AL_STOCKS": 0}
-
-
 def _fred() -> pd.DataFrame:
     return pd.read_csv(EXT / "fred_monthly.csv", index_col=0, parse_dates=True)
 
@@ -129,6 +123,8 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
     before = out.index < panel.index.min()
     out.loc[before, "D01"] = out.loc[before, "S01"] / out.loc[before, "S06"]
     out.loc[before, "D02"] = out.loc[before, "S02"] / out.loc[before, "S06"]
+    if "BR01" in out:  # laiton dérivé : même formule que panel.base_panel
+        out.loc[before, "BR01"] = 0.63 * out.loc[before, "D01"] + 0.37 * out.loc[before, "S05"] / out.loc[before, "S06"]
     if "ED01" in out:
         out.loc[before, "ED01"] = out.loc[before, "E01"] / out.loc[before, "S06"]
     if "ED02" in out:
@@ -141,11 +137,13 @@ def extend_history(panel: pd.DataFrame, start: str = "1992-01-01") -> pd.DataFra
     return out
 
 
-def build_panel(long: bool = True, external: bool = True) -> pd.DataFrame:
-    from src.testbench.run import build_panel as base_panel
-    p = base_panel()
-    if long:
-        p = extend_history(p)
-    if external:
-        p = p.join(load_external(), how="left")
-    return p
+def build_panel(long: bool = True, external: bool = True, use_licensed: bool | None = None) -> pd.DataFrame:
+    """Panel complet. ``use_licensed=None`` -> interrupteur ``backtest.use_licensed`` de config/assumptions.yaml
+    (False si la config est absente). Délègue au constructeur unique du banc de test."""
+    from src.testbench.panel import build_full_panel, load_backtest_config
+    if use_licensed is None:
+        try:
+            use_licensed = load_backtest_config()["use_licensed"]
+        except (FileNotFoundError, KeyError):
+            use_licensed = False
+    return build_full_panel(use_licensed=use_licensed, long=long, external=external)
