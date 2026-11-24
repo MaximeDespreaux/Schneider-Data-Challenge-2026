@@ -121,12 +121,15 @@ def published_by(value_month: pd.Series, value_series: pd.Series, origin: pd.Tim
 
     The forecast of ``target`` is made when its own month ``origin`` is published, i.e. at ``origin + lag(target)``.
     For the same series this is simply ``value_month <= origin``; it differs when residuals or training rows are
-    pooled over series with different publication lags."""
+    pooled over series with different publication lags. Nothing dated after ``origin`` is ever used, even when it
+    would be out by then (a PPI forecast is made two months later): same rule as everywhere else, and the live
+    forecast is cut at the origin too."""
     vm = pd.DatetimeIndex(value_month)
     lag = pd.Series(value_series).map({s: pub_lag(s) for s in pd.unique(pd.Series(value_series))}).to_numpy()
     known = vm.year * 12 + vm.month + lag
     made = origin.year * 12 + origin.month + pub_lag(target)
-    return pd.Series(np.asarray(known <= made), index=getattr(value_month, "index", None))
+    ok = (known <= made) & (vm <= origin)
+    return pd.Series(np.asarray(ok), index=getattr(value_month, "index", None))
 
 
 def _shift_for(driver: str, target: str) -> int:

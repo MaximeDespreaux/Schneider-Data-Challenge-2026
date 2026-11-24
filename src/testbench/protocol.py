@@ -24,7 +24,8 @@ GRADED = (pd.Timestamp("2022-01-01"), pd.Timestamp("2026-09-01"))
 PURGE = pd.Timestamp("2022-01-01")
 CODE_PATHS = ["src", "config/availability.yaml", "config/business.yaml", "config/assumptions.example.yaml", "tests",
               "pyproject.toml", "uv.lock"]
-NOT_PUBLISHABLE_PREFIXES = ("L0", "LIC_", "EPX_", "X_", "EP0", "EL0", "BR0")
+NOT_PUBLISHABLE_PREFIXES = ("L0", "LIC_", "EPX_", "X_", "EP0", "EL0", "BR0",
+                            "CRU", "MEPS", "SS304", "EPOXY")  # ids used by the first benchmark and the AI track
 
 
 def dev_view(scored: pd.DataFrame) -> pd.DataFrame:

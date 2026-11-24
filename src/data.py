@@ -206,7 +206,7 @@ def _num(v) -> float:
 
 def load_licensed_steel() -> pd.DataFrame:
     """Prix acier sous licence (MEPS / CRU), EUR/t : L01 = MEPS DE CR coil, L02 = CRU DE 304 CR-2mm (base +
-    surcharge), L03 = MEPS DE HDG coil, L01_FR = MEPS FR CR coil (usine RM6). Lecture par en-têtes
+    surcharge), L03 = MEPS DE HDG coil, L01_FR = MEPS FR CR coil (indice régional). Lecture par en-têtes
     (``src.licensed``). Fichier sous licence : jamais commité, jamais dans le CSV."""
     from src.licensed import load_licensed
     return load_licensed()

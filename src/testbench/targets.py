@@ -117,7 +117,7 @@ def last_valid_at(s: pd.Series, month) -> float:
     return float(known.iloc[-1])
 
 
-DIRECT_EUR_T = {"D01", "D02", "L01", "L02", "L03", "EP01", "BR01"}  # séries déjà en EUR/t ; les autres sont des indices sans unité de prix
+DIRECT_EUR_T = {"D01", "D02", "L01", "L02", "L03", "L01_FR", "EP01", "BR01"}  # séries déjà en EUR/t ; les autres sont des indices sans unité de prix
 
 
 def _chain_back(idx: pd.Series, v: pd.DataFrame, w: pd.Series, origin: pd.Timestamp) -> pd.Series:

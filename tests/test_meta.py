@@ -90,3 +90,22 @@ def test_pick_stability_columns():
     _, diag = meta_pass(base, CFG, "submission")
     st = pick_stability(diag)
     assert {"switch_rate", "agree_best_blend"} <= set(st.columns)
+
+
+def test_submission_mode_respects_the_live_gap_of_masked_series():
+    """A series masked by its live gap (e.g. stainless, one month late) is not realised at t in submission mode."""
+    df = pd.DataFrame({"series": ["L02", "L02", "S09"], "target_month": pd.to_datetime(["2020-06-01", "2020-05-01", "2020-06-01"])})
+    assert realised(df, "2020-06-01", "submission", {"L02": 1}).tolist() == [False, True, True]
+    assert realised(df, "2020-06-01", "submission").tolist() == [True, True, True]
+
+
+def test_meta_pass_submission_ignores_outcomes_inside_the_live_gap():
+    base = _base()
+    t, s = ORIGINS[50], _base().series.iloc[0]
+    late = base.target_month > t - pd.DateOffset(months=2)
+    pert = base.copy()
+    pert.loc[late, "y_true"] = pert.loc[late, "y_true"] * 3.0
+    lags = {x: 2 for x in base.series.unique()}
+    a, _ = meta_pass(base, CFG, "submission", lags=lags, origins=[t])
+    b, _ = meta_pass(pert, CFG, "submission", lags=lags, origins=[t])
+    pd.testing.assert_frame_equal(a[["p10", "p50", "p90"]], b[["p10", "p50", "p90"]])

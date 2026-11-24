@@ -1,6 +1,6 @@
 """Margin-protection replay: which quote policy would have protected the margin best, on past data?
 
-Set-up (Goal A, Olivier: "test and justify the reference that best protects margin while remaining commercially
+Set-up (Goal A, organiser request: "test and justify the reference that best protects margin while remaining commercially
 usable"). Every past month t is a quote for one box. The price is fixed at t; the materials are bought at t + h
 (h = 3, 6, 9). Everything is in units of the material cost at quote (= 1):
 

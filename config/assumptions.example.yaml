@@ -45,10 +45,11 @@ material_series_eurostat:           # used only if steel_price_source = eurostat
   stainless_steel:  {series: S09}
   galvanised_steel: {series: S10}
 
-# Regional price index per plant (Schneider: "take care of region index evolution"). Overrides material_series
-# for one product. One product uses the MEPS France CR coil, the other keeps Germany (L01).
-material_series_by_product:
-  RM6: {carbon_steel: L01_FR}
+# Regional price index per product (Schneider: "take care of region index evolution"). Overrides material_series for
+# one product. FILL_LOCALLY: which product uses which region is under NDA, so it is only in config/assumptions.yaml.
+# If left empty, every product uses the default series above.
+material_series_by_product: {}
+#  <RM6 or AirSeT>: {carbon_steel: L01_FR}
 
 # ---------------------------------------------------------------------
 # 3. BOM (bill of materials)

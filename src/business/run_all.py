@@ -20,8 +20,8 @@ from .config import load_business_config
 from .paths import out_dir
 
 MODULES = ["forecasts", "convergence", "shocks", "lags", "eaton", "electronics", "pricing_levers", "tco", "suppliers",
-           # organiser clarifications of 23 Nov 2026 (src/business/olivier_gaps/)
-           "olivier_gaps.lme_reference", "olivier_gaps.sensitivity", "olivier_gaps.procurement_summary"]
+           # organiser clarifications of 23 Nov 2026 (src/business/clarifications/)
+           "clarifications.lme_reference", "clarifications.sensitivity", "clarifications.procurement_summary"]
 
 
 def _git(*args) -> str:

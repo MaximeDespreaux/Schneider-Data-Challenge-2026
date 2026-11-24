@@ -39,7 +39,7 @@ def calibrate_bands(fc: pd.DataFrame, model: str = "wf_blend", name: str | None 
     out = []
     for (s, h), g in src.groupby(["series", "horizon"]):
         g = g.sort_values("origin")
-        lag = 0 if mode == "submission" else int(lags[s])
+        lag = int((lags or {}).get(s, 0)) if mode == "submission" else int(lags[s])
         known = g.dropna(subset=["y_true"])
         d_lo = np.log(known.p10) - np.log(known.y_true)
         d_hi = np.log(known.y_true) - np.log(known.p90)

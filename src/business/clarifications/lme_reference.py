@@ -1,6 +1,6 @@
 """Gap 1 — which LME reference best protects margin while remaining commercially usable?
 
-    uv run python -m src.business.olivier_gaps.lme_reference
+    uv run python -m src.business.clarifications.lme_reference
 
 Data: monthly AVERAGE LME cash and 3-month prices in EUR/t (challenge file, sheet ``Monthly Prices``). Only
 ``Period status == "Completed month"`` rows are kept: the last row (Nov 2026, "Month-to-date") is provisional.
@@ -24,7 +24,7 @@ Fixed prices have 0 variability by construction: this is what makes them commerc
 
 Offer months t run from ``start`` to (last completed month - h): realised costs use completed months only.
 Spread statistics describe what is known at the origin (months <= 2026-09).
-Outputs in data/outputs/business/olivier_gaps/ (gitignored) and figure olivier_lme_reference.png.
+Outputs in data/outputs/business/clarifications/ (gitignored) and figure lme_reference.png.
 """
 
 from __future__ import annotations
@@ -207,7 +207,7 @@ def _figure(summary: pd.DataFrame, horizons: list) -> None:
     axes[0].legend(fontsize=7)
     fig.suptitle("LME reference for offers: margin protection vs commercial usability (offers 2017 onwards)")
     fig.tight_layout()
-    fig.savefig(fig_dir() / "olivier_lme_reference.png", dpi=150)
+    fig.savefig(fig_dir() / "lme_reference.png", dpi=150)
     plt.close(fig)
 
 
@@ -215,11 +215,11 @@ def run(cfg: dict | None = None) -> dict:
     from src.testbench.targets import bom_weights, load_assumptions
 
     cfg = load_business_config() if cfg is None else cfg
-    lr = cfg["olivier_gaps"]["lme_reference"]
+    lr = cfg["clarifications"]["lme_reference"]
     a = load_assumptions()
     trig_cfg = float(a["quote_rules"]["indexation_trigger_pct"])
     assert float(lr["trigger_pct"]) == trig_cfg, (
-        f"olivier_gaps.lme_reference.trigger_pct ({lr['trigger_pct']}) != quote_rules.indexation_trigger_pct "
+        f"clarifications.lme_reference.trigger_pct ({lr['trigger_pct']}) != quote_rules.indexation_trigger_pct "
         f"({trig_cfg}) in config/assumptions.yaml")
     metals, horizons = lr["metals"], [int(h) for h in lr["horizons"]]
 
