@@ -160,20 +160,35 @@ def structural_problems(path: Path) -> list[str]:
     return probs
 
 
-def scan(paths: list[Path]) -> int:
+def compile_patterns() -> dict:
+    """Deny-list regexes. Shared by the file scan below and the AI track's API gate (src/ai/guard.py)."""
     terms, nums, kg, eur_m = build_denylists()
     em = "|".join(re.escape(n) for n in sorted(eur_m, key=len, reverse=True))
-    em_re = re.compile(rf"€\s?({em})(?![\d])|(?<![\w.,])({em})\s?(?:€\s?m|m€|m\b|M\b|million)")
-    term_re = re.compile("|".join(re.escape(t) for t in sorted(terms, key=len, reverse=True)), re.I)
     # PDF text extraction glues adjacent table cells ("2" + "118" -> "2 118"), so in PDFs the space-separated
     # spellings are skipped; the HTML the PDFs are rendered from is scanned with every spelling.
     pdf_nums = {n for n in nums if " " not in n and "\u202f" not in n}
-    num_re_pdf = re.compile(r"(?<![\w.,])(" + "|".join(re.escape(n) for n in sorted(pdf_nums, key=len, reverse=True))
-                            + r")(?![\w]|[.,]\d)")
-    kg_re = re.compile(r"(?<![\w.,])(" + "|".join(re.escape(n) for n in sorted(kg, key=len, reverse=True))
-                       + r")\s?kg\b", re.I)
-    num_re = re.compile(r"(?<![\w.,])(" + "|".join(re.escape(n) for n in sorted(nums, key=len, reverse=True))
-                        + r")(?![\w]|[.,]\d)")
+    alt = lambda xs: "|".join(re.escape(n) for n in sorted(xs, key=len, reverse=True))  # noqa: E731
+    return {
+        "eur_m": re.compile(rf"€\s?({em})(?![\d])|(?<![\w.,])({em})\s?(?:€\s?m|m€|m\b|M\b|million)"),
+        "term": re.compile(alt(terms), re.I),
+        "num_pdf": re.compile(r"(?<![\w.,])(" + alt(pdf_nums) + r")(?![\w]|[.,]\d)"),
+        "kg": re.compile(r"(?<![\w.,])(" + alt(kg) + r")\s?kg\b", re.I),
+        "num": re.compile(r"(?<![\w.,])(" + alt(nums) + r")(?![\w]|[.,]\d)"),
+        "sizes": (len(terms), len(nums) + len(kg) + len(eur_m)),
+    }
+
+
+def find_leaks(line: str, pats: dict, pdf: bool = False) -> list[str]:
+    """Private terms / numbers found in one line of text."""
+    out = [f"private term '{m.group(0)}'" for m in pats["term"].finditer(line)]
+    nre = pats["num_pdf"] if pdf else pats["num"]
+    for m in [*nre.finditer(line), *pats["kg"].finditer(line), *pats["eur_m"].finditer(line)]:
+        out.append(f"private number '{m.group(0)}'  …{line[max(0, m.start() - 40):m.end() + 40].strip()}…")
+    return out
+
+
+def scan(paths: list[Path]) -> int:
+    pats = compile_patterns()
     files = []
     for p in paths:
         p = p.resolve()
@@ -201,14 +216,10 @@ def scan(paths: list[Path]) -> int:
         for i, line in enumerate(file_text(f).splitlines(), 1):
             if "nda-ok" in line:  # reviewed false positive (e.g. a MAPE that equals a private number)
                 continue
-            for m in term_re.finditer(line):
-                print(f"{rel}:{i}: private term '{m.group(0)}'")
+            for hit in find_leaks(line, pats, pdf=f.suffix == ".pdf"):
+                print(f"{rel}:{i}: {hit}")
                 n_hits += 1
-            nre = num_re_pdf if f.suffix == ".pdf" else num_re
-            for m in [*nre.finditer(line), *kg_re.finditer(line), *em_re.finditer(line)]:
-                print(f"{rel}:{i}: private number '{m.group(0)}'  …{line[max(0, m.start() - 40):m.end() + 40].strip()}…")
-                n_hits += 1
-    print(f"\n{len(files)} files scanned, {len(terms)} terms + {len(nums) + len(kg) + len(eur_m)} numbers on the deny-list: "
+    print(f"\n{len(files)} files scanned, {pats["sizes"][0]} terms + {pats["sizes"][1]} numbers on the deny-list: "
           f"{'NO LEAK FOUND' if n_hits == 0 else f'{n_hits} PROBLEM(S)'}")
     return 1 if n_hits else 0
 
