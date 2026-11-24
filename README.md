@@ -223,5 +223,6 @@ Analysis notebooks and reports, in their NDA-safe version ([public/README.md](pu
 | `business`   | Business modules + `REPORT.md`                 |
 | `submission` | Alias of `champion`                            |
 | `ai`         | AI track: pretrained models (installs torch)   |
+| `ai-plots`   | AI track figures (run `ai` first; private)     |
 | `scan`       | NDA leak scan before every push                |
 | `all`        | data-check, fetch, test, champion, business    |
