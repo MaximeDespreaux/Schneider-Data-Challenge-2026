@@ -21,3 +21,7 @@ __pycache__/
 # Data (not tracked; keep folder)
 data/*
 !data/.gitkeep
+
+# Real assumptions file contains licensed MEPS/CRU values: keep it local.
+# Share config/assumptions.example.yaml instead (copy it to assumptions.yaml and fill the licensed values).
+config/assumptions.yaml
