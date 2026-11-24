@@ -210,7 +210,7 @@ def test_peers_deterministic_and_estimator_rules():
 def test_sf6_flags():
     td = pd.DataFrame({"brand": ["Eaton", "Eaton", "ABB", "ABB", "SGC"],
                        "group": ["copper", "carbon_steel", "copper", "sf6", "copper"],
-                       "mass_kg": [26.4, 73.8, 150.0, 1.2, 0.03], "broken": [False, False, False, False, True]})
+                       "mass_kg": [1.0, 2.0, 3.0, 0.5, 0.1], "broken": [False, False, False, False, True]})
     f = eaton.sf6_flags(td)
     assert f["Eaton"] is True
     assert f["ABB"] is False
@@ -259,3 +259,25 @@ def test_cache_invalidated_when_champion_newer(tmp_path):
     os.utime(champ, (500_000, 500_000))  # older but now covers A -> naive_vol cache replaced
     use, why = forecasts.cache_decision(cache, champ, origin, "champion")
     assert use is False and "available" in why
+
+
+def test_epoxy_ingredient_labels_are_unique():
+    from src.business.lags import ingredient_label
+    labels = [ingredient_label(c) for c in ["EPX_BENZENE", "EPX_ACETONE", "EPX_ECH"]]
+    assert labels == ["benzene", "acetone", "ech"]
+
+
+def test_wf_blend_source_reads_latest_graded_run(tmp_path, monkeypatch):
+    import pandas as pd
+    from src.business import forecasts as bf
+    g = tmp_path / "graded" / "freeze-v1" / "submission"
+    g.mkdir(parents=True)
+    o = pd.Timestamp("2026-09-01")
+    rows = [{"model": m, "series": s, "origin": o, "horizon": 3, "target_month": pd.Timestamp("2026-12-01"),
+             "p10": 90.0, "p50": 100.0, "p90": 110.0} for m in ("wf_blend", "naive") for s in ("A", "B")]
+    pd.DataFrame(rows).to_parquet(g / "forecasts.parquet")
+    monkeypatch.setattr(bf, "GRADED", tmp_path / "graded")
+    assert bf.source_path("wf_blend") == g / "forecasts.parquet"
+    got = bf.champion_rows(bf.source_path("wf_blend"), o, {"A", "B"}, model="wf_blend")
+    assert set(got.model) == {"wf_blend"} and len(got) == 2
+    assert bf.champion_rows(bf.source_path("wf_blend"), o, {"A", "C"}, model="wf_blend") is None

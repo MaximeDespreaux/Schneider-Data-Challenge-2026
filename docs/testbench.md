@@ -2,7 +2,34 @@
 
 > Ce document ne contient aucune donnée : il décrit le code. Les résultats chiffrés sont dans `data/outputs/` (gitignoré).
 
-## Ce que fait le banc
+## Version durcie (backtest-hardening, nov. 2026) : à utiliser pour tout résultat montré au jury
+
+```
+uv run python -m src.testbench.pipeline --dev        # fenêtre DEV : origines 2010-01 → 2021-12, cibles < 2022-01
+uv run python -m src.testbench.pipeline --canaries   # tests anti-fuite sur données réelles -> data/outputs/canaries/<commit>.json
+uv run python -m src.testbench.pipeline --graded     # UNE seule fois : commit tagué, arbre propre, canaris OK
+uv run python -m src.testbench.pipeline --submit     # CSV origine 2026-09 (wf_blend), à partir du run gradé
+uv run python -m src.business.run_margin_replay      # Goal A : quelle politique de devis protège la marge ?
+```
+
+- **Ce qui est connu à chaque origine** : `config/availability.yaml` est la seule table des délais (mode `realtime`).
+  En mode `submission`, chaque entrée est masquée du même nombre de mois qu'aujourd'hui (bord irrégulier du live).
+  Les moyennes mensuelles de prix quotidiens (VIX, change, LME…) ont un délai de 1 en `realtime` (mois incomplet
+  à mi-mois), contre 0 auparavant.
+- **Indices BOM causaux** (`targets.make_bom_deriver`) : poids en coût (prix × masse, BOM v2) connus à l'origine,
+  acier régional par produit (indice MEPS régional, config locale), composantes prolongées jusqu'à l'origine (indice = 100),
+  historique chaîné quand une composante démarre plus tard. Plastiques / électronique : niveau EUR/kg de config.
+- **Choix du modèle walk-forward** (`meta.py`) : à chaque origine, seulement les prévisions déjà réalisées ;
+  `wf_best`, `wf_blend` (modèle soumis), `wf_median`. Plus de choix sur 2024-26 (déjà regardé).
+- **Statistiques** (`stats.py`) : DM ordonné (HAC + HLN), Clark-West, DM groupé par famille + Holm, IC bootstrap
+  par blocs, MDE par placebos, Kupiec / Christoffersen / Ljung-Box sur origines non chevauchantes.
+- **Canaris** (`canaries.py`) : fuite plantée, cible permutée, identité de troncature, décalage d'un mois.
+- **Protocole** (`protocol.py`) : pré-enregistrement `docs/backtest/preregistration.md`, garde « un seul run gradé »,
+  `manifest.json` (hash du code, de la config et des données) dans chaque dossier de sortie.
+
+Les commandes historiques ci-dessous (`src.testbench.run`) restent disponibles pour l'exploration.
+
+## Ce que fait le banc (version d'origine)
 On rejoue l'histoire mois par mois. À chaque **origine** (janv. 2020 → aujourd'hui), chaque modèle ne reçoit que ce
 qui était connu à cette date, prévoit les mois **origine + 3, + 6 et + 9** (P10 / P50 / P90), puis on compare
 avec la réalité. Tous les scores sont comparés à la référence **`naive`** : « le prix reste celui d'aujourd'hui ».
@@ -31,8 +58,7 @@ Hypothèses volontairement simples, à citer comme ordre de grandeur.
 | `submission` | toutes les séries jusqu'à t inclus | même définition que le CSV (`origin_month` = dernier mois utilisé) |
 | `realtime` | chaque série jusqu'à t − délai de publication | test de robustesse « vraie vie » (un acheteur en novembre n'a l'indice Eurostat que jusqu'en septembre) |
 
-Les délais sont dans `src/testbench/vintage.py` (`REALTIME_LAG_MONTHS`). La partie 1 pourra les remplacer par sa
-table « quand chaque chiffre a été publié ».
+Les délais sont dans `config/availability.yaml` (une ligne par série, test qui vérifie que chaque colonne du panel en a une).
 
 ## Brancher un modèle (partie 3)
 Un modèle est un objet avec un attribut `name` et une méthode :
