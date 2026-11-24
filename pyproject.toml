@@ -15,12 +15,13 @@ dependencies = [
     "lightgbm",
     "openpyxl>=3.1.5",
     "statsmodels>=0.15.0",
-    "pyyaml",
-    "scipy",
-    "requests",
 ]
 
 [dependency-groups]
+ai = [
+    "chronos-forecasting>=2.0",
+    "torch>=2.15.0",
+]
 dev = [
     "jupyterlab",
     "ipykernel",
