@@ -80,6 +80,12 @@ def report_stage(res: pd.DataFrame) -> dict[str, pd.DataFrame]:
             c = ab.compare(res, [name], res.target_month > pd.Timestamp(v["clean_after"]), bench=b)
             if not c.empty:
                 clean.append(c.assign(clean_after=v["clean_after"]))
+        # combinations embed Chronos-2 and the selection may pick any model: clean only after the latest release
+        last = max(v["clean_after"] for v in C.MODELS.values())
+        c = ab.compare(res, [m for m in (*COMBOS, "ai_selected", "naive_vol") if m != b],
+                       res.target_month > pd.Timestamp(last), bench=b)
+        if not c.empty:
+            clean.append(c.assign(clean_after=last))
         out[f"clean_window{sfx}"] = pd.concat(clean) if clean else pd.DataFrame()
     fam = res.assign(family=res.series.map(fe.FAMILY))
     out["by_family_from_2024"] = pd.concat(
