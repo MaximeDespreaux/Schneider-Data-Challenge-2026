@@ -32,7 +32,13 @@ data (challenge panel + licensed steel + epoxy + public data)  →  causal panel
 | Hardened backtest: availability per series, canaries, DM / Clark-West / Holm / bootstrap / MDE, graded run | `src/testbench/pipeline.py`, `config/availability.yaml` | [preregistration.md](docs/backtest/preregistration.md) |
 | Business modules (Goal A and B) | `src/business/` | [business.md](docs/business.md) |
 
-## 3. Main results (relative to the naive forecast, 2024-26 holdout never used for model choice)
+## 3. Main results (relative to the naive forecast, 2024-26 check)
+
+> **To re-run** (`make champion`). The table predates the fixes of 2026-11-24: the champion is now screened again at every
+> origin, inputs are masked by the live ragged edge, and RM6 steel is valued at its own price at each origin. 2024-26 is
+> not an untouched holdout: signals are chosen on targets before 2024, but this period also decides champion v1 vs v2 and
+> whether LightGBM replaces the champion, and it was looked at when setting the `naive_vol` bands
+> (see [preregistration.md](docs/backtest/preregistration.md), "Prior looks").
 
 | Model | Error of P50 (3 / 6 / 9 m) | Quantile loss (3 / 6 / 9 m) | P10–P90 coverage (target 0.80) |
 |---|---|---|---|
@@ -60,8 +66,8 @@ What this means:
   (`uv run python -m src.testbench.audit`).
 - **Leak canaries on the real data** (planted leak detected, permuted future gives no gain, truncation and off-by-one
   checks): pass in both modes (`uv run python -m src.testbench.pipeline --canaries`).
-- Model and setting choices were made on data before 2024 (or on the dev window 2010–2021 for the hardened backtest),
-  then checked once on later data.
+- Signals and settings were chosen on data before 2024 (or on the dev window 2010–2021 for the hardened backtest). Two
+  later decisions (champion v1 vs v2, LightGBM vs champion) use 2024–26 with a rule fixed beforehand.
 
 ## 5. Prerequisites and quickstart
 
