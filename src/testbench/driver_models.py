@@ -81,9 +81,10 @@ class DriverRidge:
         p10, p50, p90 = [], [], []
         for h in steps:
             tgt = (ly.shift(-h) - ly).rename("tgt")  # uniquement à l'intérieur de l'historique connu
-            df = feats.join(tgt).iloc[-(self.window + h):].dropna()
             ok = last_x.notna().all().to_numpy()
             cols = feats.columns[ok]
+            # rows need only the features used now (a driver that started recently must not empty the sample)
+            df = feats[cols].join(tgt).iloc[-(self.window + h):].dropna()
             if len(df) < 24 or len(cols) == 0:
                 d = (ly.shift(-h) - ly).dropna()
                 q = np.quantile(d - d.median(), [0.1, 0.9]) if len(d) > 8 else (0.0, 0.0)

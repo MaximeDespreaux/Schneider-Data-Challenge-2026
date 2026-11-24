@@ -37,7 +37,18 @@ def nonnull_between(s: pd.Series, start: str, end: str) -> bool:
     return bool(s.loc[start:end].notna().all()) and len(s.loc[start:end]) == len(pd.date_range(start, end, freq="MS"))
 
 
+EXPECTED = d.ROOT / "data" / "verify_expected.yaml"  # gitignored: licensed / challenge values never in git
+
+
+def _expected() -> dict:
+    import yaml
+    if not EXPECTED.exists():
+        raise SystemExit(f"{EXPECTED} missing: this check compares against local (licensed) values kept out of git")
+    return yaml.safe_load(EXPECTED.read_text(encoding="utf-8"))
+
+
 def main() -> None:
+    E = _expected()
     pd.set_option("display.width", 200)
     pd.set_option("display.max_columns", 30)
 
@@ -47,13 +58,13 @@ def main() -> None:
     for c in ["L01", "L03"]:
         check(c in panel and nonnull_between(panel[c], "2016-11", "2026-09"), f"{c} non vide de 2016-11 à 2026-09")
     check("L02" in panel and nonnull_between(panel["L02"], "2016-11", "2026-08"), "L02 non vide de 2016-11 à 2026-08")
-    check(panel.at[BASE, "L01"] == 0, f"L01[2026-09] == 0 (lu : {panel.at[BASE, 'L01']})")
-    check(panel.at[BASE, "L03"] == 0, f"L03[2026-09] == 0 (lu : {panel.at[BASE, 'L03']})")
+    check(panel.at[BASE, "L01"] == E["L01_base"], "L01[2026-09] == expected value (local file)")
+    check(panel.at[BASE, "L03"] == E["L03_base"], "L03[2026-09] == expected value (local file)")
     l02 = panel.at[pd.Timestamp("2026-08-01"), "L02"]
-    check(l02 == 0, f"L02[2026-08] == 0 (lu : {l02})")
+    check(l02 == E["L02_2026_08"], "L02[2026-08] == expected value (local file)")
     check("EP01" in panel and nonnull_between(panel["EP01"], "2018-01", "2026-09"), "EP01 non vide de 2018-01 à 2026-09")
     ep = panel.at[BASE, "EP01"]
-    check(abs(ep - 0) < 1, f"|EP01[2026-09] - 0| < 1 (lu : {ep:.1f})")
+    check(abs(ep - E["EP01_base"]) < 1, "|EP01[2026-09] - expected| < 1 (local file)")
     if "EL01" in panel and panel["EL01"].notna().any():
         el = panel["EL01"]
         check(int(el.notna().sum()) >= 100, f"EL01 : au moins 100 mois (lu : {int(el.notna().sum())})")
@@ -87,11 +98,10 @@ def main() -> None:
     for prod, s in w.groupby("product")["weight"].sum().items():
         check(abs(s - 1) < 1e-9, f"{prod} : somme des poids = 1 (lu : {s:.12f})")
     kg = w.set_index(["product", "material"])["kg"]
-    expected = {("RM6", "copper"): 0, ("RM6", "epoxy"): 0, ("RM6", "brass"): 0,
-                ("RM6", "carbon_steel"): 0, ("AirSeT", "copper"): 0, ("AirSeT", "epoxy"): 0}
+    expected = {tuple(k.split("|")): v for k, v in E["bom_kg"].items()}
     for (prod, mat), v in expected.items():
         got = kg.get((prod, mat), float("nan"))
-        check(abs(got - v) <= 1e-3 + 1e-9, f"{prod} {mat} = {v} kg (lu : {got:.3f})")
+        check(abs(got - v) <= 1e-3 + 1e-9, f"{prod} {mat} kg == expected (local file)")
     ser = w.set_index("material")["series"]
     check(set(ser[ser.index == "epoxy"]) == {"EP01"}, "lignes epoxy -> série EP01")
     check(set(ser[ser.index == "brass"]) == {"BR01"}, "lignes laiton -> série BR01")
@@ -99,7 +109,7 @@ def main() -> None:
     check(int(dup.max()) == 1, "aucune ligne matière dupliquée (epoxy…) par produit")
     rm6_total = d.load_bom("v2")
     rm6_total = float(rm6_total.loc[rm6_total["product"] == "RM6", "implied_total_kg"].iloc[0])
-    check(abs(rm6_total - 0) <= 2, f"RM6 masse totale implicite ≈ 0 kg (lu : {rm6_total:.2f})")
+    check(abs(rm6_total - E["rm6_total_kg"]) <= 2, "RM6 implied total mass == expected (local file)")
 
     a1 = copy.deepcopy(a)
     a1["bom"]["version"] = "xlsx_v1"
@@ -135,8 +145,8 @@ def main() -> None:
     td = d.load_competitor_teardowns()
     pick = lambda b, col, v: td.loc[(td.brand == b) & (td[col] == v), "mass_kg"].sum()  # noqa: E731
     abb_cu, eaton_st = pick("ABB", "material", "Copper"), pick("Eaton", "group", "carbon_steel")
-    check(abs(abb_cu - 0) < 1e-9, f"ABB cuivre = 0 kg (lu : {abb_cu})")
-    check(abs(eaton_st - 0) < 1e-9, f"Eaton acier = 0 kg (lu : {eaton_st})")
+    check(abs(abb_cu - E["abb_copper_kg"]) < 1e-9, "ABB copper kg == expected (local file)")
+    check(abs(eaton_st - E["eaton_steel_kg"]) < 1e-9, "Eaton steel kg == expected (local file)")
     check(bool(td.loc[td.brand == "SGC", "broken"].all()), "SGC marqué broken")
     out = d.OUT / "business"
     out.mkdir(parents=True, exist_ok=True)

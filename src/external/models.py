@@ -2,6 +2,7 @@
 
 - SignalRidge : régression ridge (sans constante -> retombe sur « pas de changement » sans signal) de la variation
   à h mois sur les signaux retenus par le criblage (src/external/screen.py, cibles < 2024 uniquement).
+- ChampionWF  : Champion dont le criblage est refait à chaque origine (``screen.screen_at``).
 - Hybrid      : prend la valeur centrale (P50) d'un modèle et la forme de fourchette d'un autre (`naive_vol`),
   car les fourchettes issues des résidus de régression sont trop étroites.
 """
@@ -14,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from src.external.features import make_features
+from src.external.screen import screen_at
 from src.testbench.models import _frame
 
 HORIZONS = (3, 6, 9)
@@ -28,10 +30,11 @@ class SignalRidge:
     min_obs: int = 48
     always: tuple = ("own_d1",)  # toujours inclus (momentum)
     cross: tuple | None = None  # séries cross_* candidates (None -> features.CROSS, la v1)
+    extended: bool = False      # features étendues (champion_wf2)
 
     def point_frame(self, y: pd.Series, steps, exog: pd.DataFrame) -> pd.DataFrame:
         target = y.name
-        feats = make_features(exog, target, cross=self.cross).reindex(y.index)
+        feats = make_features(exog, target, cross=self.cross, extended=self.extended).reindex(y.index)
         ly = np.log(y)
         base = float(y.iloc[-1])
         out = {}
@@ -71,11 +74,12 @@ class Champion:
     min_signals: int = 3
     name: str = "champion"
     cross: tuple | None = None  # séries cross_* candidates (None -> features.CROSS, la v1)
+    extended: bool = False
 
     def __post_init__(self):
         from src.testbench.models import NaiveVolScaled
         self.bands = NaiveVolScaled()
-        self.ridge = SignalRidge(selected=self.selected, alpha_per_obs=2.0, cross=self.cross)
+        self.ridge = SignalRidge(selected=self.selected, alpha_per_obs=2.0, cross=self.cross, extended=self.extended)
 
     def uses_signals(self, target: str, step: int) -> bool:
         h = min(HORIZONS, key=lambda k: abs(k - step))
@@ -88,6 +92,22 @@ class Champion:
         pts = self.ridge.point_frame(y, sig_steps, exog) if sig_steps else pd.Series(dtype=float)
         p50 = np.array([pts.get(s, base) for s in steps], dtype=float)
         return _frame(steps, p50 * b["p10"] / b["p50"], p50, p50 * b["p90"] / b["p50"])
+
+
+@dataclass
+class ChampionWF:
+    """Champion avec criblage WALK-FORWARD : à chaque prévision, ``screen_at`` choisit les signaux sur les seules
+    cibles réalisées à l'origine (jamais la coupure 2024 inspectée), puis délègue à ``Champion``."""
+
+    min_signals: int = 3
+    max_keep: int = 6
+    name: str = "champion_wf"
+    extended: bool = False  # champion_wf2: + licensed market-vs-index gap and regime features
+
+    def forecast(self, y, steps, exog=None):
+        sel = screen_at(exog, y.name, max_keep=self.max_keep, extended=self.extended)
+        return Champion(selected=sel, min_signals=self.min_signals, name=self.name,
+                        extended=self.extended).forecast(y, steps, exog=exog)
 
 
 @dataclass

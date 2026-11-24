@@ -11,16 +11,7 @@ from src.testbench.models import AR1Point, Conformal, DriftPoint, Naive, NaiveGa
 from src.testbench.submission import COLUMNS, from_forecasts, validate_submission
 from src.testbench.vintage import information_set, month_add, months_between
 
-
-@pytest.fixture
-def panel():
-    rng = np.random.default_rng(0)
-    idx = pd.date_range("2015-01-01", periods=120, freq="MS")
-    a = 100 * np.exp(np.cumsum(rng.normal(0.003, 0.04, 120)))
-    b = 50 * np.exp(np.cumsum(rng.normal(0.0, 0.02, 120)))
-    df = pd.DataFrame({"A": a, "B": b}, index=idx)
-    df.iloc[-2:, 1] = np.nan  # B publiée avec retard
-    return df
+from tests.conftest import toy_derive as _toy_derive
 
 
 class Spy:
@@ -36,14 +27,6 @@ class Spy:
         return pd.DataFrame({"p10": last, "p50": last, "p90": last}, index=pd.Index(steps, name="step"))
 
 
-def _toy_derive(values_df, bases_df, origin):
-    """Indice dérivé jouet (même logique que les indices BOM) : poids et bases fixés à l'origine."""
-    known = bases_df.loc[:origin]
-    ba, bb = known["A"].dropna().iloc[-1], known["B"].dropna().iloc[-1]
-    wa = ba / (ba + bb)
-    return pd.DataFrame({"IDX": 100 * (wa * values_df["A"] / ba + (1 - wa) * values_df["B"] / bb)}, index=values_df.index)
-
-
 @pytest.mark.parametrize("mode", ["submission", "realtime"])
 def test_perturbing_the_future_changes_nothing(panel, mode):
     """Test de perturbation : on remplace tout le futur (toutes séries) par du bruit -> prévisions identiques."""
@@ -54,17 +37,9 @@ def test_perturbing_the_future_changes_nothing(panel, mode):
         pert = panel.copy()
         fut = pert.index > o
         pert.loc[fut] = pert.loc[fut] * np.random.default_rng(7).uniform(0.2, 5, size=pert.loc[fut].shape)
-        kw = dict(origins=[o], mode=mode, derive=_toy_derive, verbose=False)
-        if lags:
-            import src.testbench.vintage as v
-            old = dict(v.REALTIME_LAG_MONTHS)
-            v.REALTIME_LAG_MONTHS.clear(); v.REALTIME_LAG_MONTHS.update(lags)
-        try:
-            a = run_backtest(panel, ["A", "B", "IDX"], models, **kw)
-            b = run_backtest(pert, ["A", "B", "IDX"], models, **kw)
-        finally:
-            if lags:
-                v.REALTIME_LAG_MONTHS.clear(); v.REALTIME_LAG_MONTHS.update(old)
+        kw = dict(origins=[o], mode=mode, derive=_toy_derive, verbose=False, lags=lags)
+        a = run_backtest(panel, ["A", "B", "IDX"], models, **kw)
+        b = run_backtest(pert, ["A", "B", "IDX"], models, **kw)
         cols = ["p10", "p50", "p90"]
         assert len(a) == len(b) > 0
         np.testing.assert_array_equal(a[cols].to_numpy(), b[cols].to_numpy())

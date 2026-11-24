@@ -21,13 +21,17 @@ def default_origins(panel: pd.DataFrame, start: str = "2020-01", end: str | None
 
 def run_backtest(panel: pd.DataFrame, targets: list[str], models: list, origins=None,
                  horizons=HORIZONS, mode: str = "submission", min_history: int = 36,
-                 verbose: bool = True, derive=None) -> pd.DataFrame:
+                 verbose: bool = True, derive=None, lags: dict[str, int] | None = None) -> pd.DataFrame:
     """Rejoue chaque modèle sur chaque (origine, série, horizon).
 
     ``derive`` (optionnel) : fonction ``derive(values_df, bases_df, origin) -> DataFrame`` qui fabrique des
     séries dérivées (ex. indices BOM) À CHAQUE ORIGINE, à partir de ce qui est connu à cette origine
     (cf. ``targets.make_bom_deriver``). L'historique dérivé est calculé sur l'info tronquée ; la vérité sur le
     panel complet mais avec les MÊMES poids/bases (fixés à l'origine).
+
+    ``lags`` : masques par colonne passés à ``information_set`` (bord irrégulier en submission, délais de
+    publication en realtime ; cf. ``availability.py``). Un modèle qui a un attribut ``targets`` n'est lancé que sur
+    ces séries.
 
     Retour (format long, une ligne par prévision) :
         model, series, origin, horizon, target_month, last_obs, step, p10, p50, p90, y_true
@@ -39,7 +43,7 @@ def run_backtest(panel: pd.DataFrame, targets: list[str], models: list, origins=
     t0 = time.time()
     runtime = {m.name: 0.0 for m in models}
     for i, origin in enumerate(origins):
-        info = information_set(panel, origin, mode=mode)
+        info = information_set(panel, origin, mode=mode, lags=lags)
         truth = panel
         if derive is not None:
             hist = derive(info, info, origin)
@@ -54,6 +58,8 @@ def run_backtest(panel: pd.DataFrame, targets: list[str], models: list, origins=
             steps = {h: months_between(last, tgt[h]) for h in horizons}
             uniq = sorted(set(steps.values()))
             for m in models:
+                if getattr(m, "targets", None) is not None and s not in m.targets:
+                    continue
                 tm = time.perf_counter()
                 fc = m.forecast(y, uniq, exog=info)
                 runtime[m.name] += time.perf_counter() - tm

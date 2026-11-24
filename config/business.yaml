@@ -4,7 +4,7 @@ horizons: [3, 6, 9]
 products: [RM6, AirSeT]
 
 forecast_source:
-  prefer: champion          # use champion forecasts at the origin if data/outputs/external/champion_holdout.parquet has them
+  prefer: champion_wf       # submitted model from the newest graded run (data/outputs/backtest/graded/*/submission); or: champion (old holdout)
   fallback_model: naive_vol # otherwise one single-origin run of NaiveVolScaled (cheap)
 
 pricing:
@@ -26,7 +26,7 @@ lag_analysis:
     - {name: MEPS_CR_coil_to_EU_steel_PPI,      x: L01, y: S09}
     - {name: MEPS_HDG_to_DE_steel_PPI,          x: L03, y: S10}
     - {name: nickel_LME_to_CRU_stainless_304,   x: S03, y: L02}
-  epoxy_ingredients: ["BENZENE_EUROPE_EUR per TON", "ACETONE_EUROPE_EUR per TON", "EPYCHLORHYDRINE_EUROPE_EUR per TON"]
+  epoxy_ingredients: ["EPX_BENZENE", "EPX_ACETONE", "EPX_ECH"]
 
 electronics_slider:
   eur_per_box:

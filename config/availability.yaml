@@ -1,0 +1,131 @@
+# Availability table: ONE row per series. Single source of truth for publication lags (spec 5.2).
+# realtime_lag: a buyer deciding mid-month t sees reference month t - realtime_lag (providers' release calendars,
+#   not the download date). Monthly averages of daily prices are incomplete mid-month, hence lag 1.
+# revision_months: how long a published value keeps being revised (informational; truth = latest vintage).
+# vintages: false everywhere (first releases are not stored, see spec non-goals).
+# Submission mode does NOT use realtime_lag: it mirrors the live ragged edge (availability.ragged_edge_lags).
+# No values in this file: it is committed.
+
+# --- IMF Primary Commodity Prices via FRED
+S01: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+S02: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+S03: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+S04: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+S05: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+E01: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+E02: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+E03: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+E05: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+E06: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+E07: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+E08: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+E22: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+X_IMF_METALS: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+X_IMF_ALLCOMMOD: {provider: "IMF Primary Commodity Prices via FRED", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED/IMF, cite)"}
+
+# --- European Central Bank
+S06: {provider: "European Central Bank", formation: "monthly average FX", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (ECB)"}
+E23: {provider: "European Central Bank", formation: "monthly average FX", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (ECB)"}
+E24: {provider: "European Central Bank", formation: "monthly average FX", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (ECB)"}
+
+# --- Derived (IMF / ECB)
+D01: {provider: "Derived (IMF / ECB)", formation: "S01 or S02 divided by S06", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+D02: {provider: "Derived (IMF / ECB)", formation: "S01 or S02 divided by S06", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+
+# --- Eurostat sts_inppd_m
+S07: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+S08: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+S09: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+S10: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+S11: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+E13: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+E14: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+E15: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+E16: {provider: "Eurostat sts_inppd_m", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+
+# --- Eurostat trade
+E20: {provider: "Eurostat trade", formation: "monthly volume", realtime_lag: 3, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+E21: {provider: "Eurostat trade", formation: "monthly volume", realtime_lag: 3, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+ED06: {provider: "Eurostat trade", formation: "monthly volume", realtime_lag: 3, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+
+# --- US BLS via FRED
+S12: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+S13: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+E17: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+E18: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+X_US_PPI_ALL: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+X_US_PPI_CRUDE: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+X_US_PPI_INTERMED: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+X_US_PPI_STEEL: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+X_US_PPI_NONFERROUS: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+X_US_STEEL_SCRAP: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+X_FREIGHT: {provider: "US BLS via FRED", formation: "monthly index", realtime_lag: 1, revision_months: 4, vintages: false, licence: "public (BLS)"}
+
+# --- Bank of Japan CGPI
+E04: {provider: "Bank of Japan CGPI", formation: "monthly index", realtime_lag: 1, revision_months: 1, vintages: false, licence: "public (BoJ)"}
+E19: {provider: "Bank of Japan CGPI", formation: "monthly index", realtime_lag: 1, revision_months: 1, vintages: false, licence: "public (BoJ)"}
+
+# --- Ember / JEPX
+E09: {provider: "Ember / JEPX", formation: "monthly average power price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (Ember CC BY 4.0 / JEPX)"}
+E10: {provider: "Ember / JEPX", formation: "monthly average power price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (Ember CC BY 4.0 / JEPX)"}
+E11: {provider: "Ember / JEPX", formation: "monthly average power price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (Ember CC BY 4.0 / JEPX)"}
+E12: {provider: "Ember / JEPX", formation: "monthly average power price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (Ember CC BY 4.0 / JEPX)"}
+
+# --- Derived (FRED / ECB)
+ED01: {provider: "Derived (FRED / ECB)", formation: "monthly, EUR conversion", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+ED02: {provider: "Derived (FRED / ECB)", formation: "monthly, EUR conversion", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+ED03: {provider: "Derived (FRED / ECB)", formation: "monthly, EUR conversion", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+ED04: {provider: "Derived (FRED / ECB)", formation: "monthly, EUR conversion", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+ED05: {provider: "Derived (FRED / ECB)", formation: "monthly, EUR conversion", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+
+# --- Federal Reserve G.17 / US Census via FRED
+X_US_INDPRO: {provider: "Federal Reserve G.17 / US Census via FRED", formation: "monthly", realtime_lag: 1, revision_months: 3, vintages: false, licence: "public"}
+X_US_IP_METALS: {provider: "Federal Reserve G.17 / US Census via FRED", formation: "monthly", realtime_lag: 1, revision_months: 3, vintages: false, licence: "public"}
+X_US_CAPUTIL: {provider: "Federal Reserve G.17 / US Census via FRED", formation: "monthly", realtime_lag: 1, revision_months: 3, vintages: false, licence: "public"}
+X_US_HOUSING: {provider: "Federal Reserve G.17 / US Census via FRED", formation: "monthly", realtime_lag: 1, revision_months: 3, vintages: false, licence: "public"}
+
+# --- US Census M3 via FRED
+X_US_NEW_ORDERS: {provider: "US Census M3 via FRED", formation: "monthly", realtime_lag: 2, revision_months: 2, vintages: false, licence: "public"}
+
+# --- Daily market data via FRED
+X_VIX: {provider: "Daily market data via FRED", formation: "monthly average of daily", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED; CBOE terms)"}
+X_OVX: {provider: "Daily market data via FRED", formation: "monthly average of daily", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED; CBOE terms)"}
+X_USD_BROAD: {provider: "Daily market data via FRED", formation: "monthly average of daily", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED; CBOE terms)"}
+X_US_BREAKEVEN: {provider: "Daily market data via FRED", formation: "monthly average of daily", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED; CBOE terms)"}
+X_US_10Y: {provider: "Daily market data via FRED", formation: "monthly average of daily", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public (FRED; CBOE terms)"}
+
+# --- Economic Policy Uncertainty via FRED
+X_GLOBAL_EPU: {provider: "Economic Policy Uncertainty via FRED", formation: "monthly", realtime_lag: 2, revision_months: 0, vintages: false, licence: "public"}
+
+# --- NY Fed GSCPI
+X_GSCPI: {provider: "NY Fed GSCPI", formation: "monthly", realtime_lag: 1, revision_months: 1, vintages: false, licence: "public (cite)"}
+
+# --- LME file (challenge data)
+X_CU_TERM: {provider: "LME file (challenge data)", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+X_AL_TERM: {provider: "LME file (challenge data)", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+X_CU_STOCKS: {provider: "LME file (challenge data)", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+X_AL_STOCKS: {provider: "LME file (challenge data)", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+
+# --- CRU / MEPS (licensed)
+L01: {provider: "MEPS (licensed) Germany CR coil", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED (use allowed by Schneider 2026-11-19) - never in git, CI logs or the submission CSV"}
+L02: {provider: "CRU (licensed) Germany 304 base+alloy", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED (use allowed by Schneider 2026-11-19) - never in git, CI logs or the submission CSV"}
+L03: {provider: "MEPS (licensed) Germany HDG coil", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED (use allowed by Schneider 2026-11-19) - never in git, CI logs or the submission CSV"}
+L01_FR: {provider: "MEPS (licensed) France CR coil", formation: "monthly price", realtime_lag: 1, revision_months: 0, vintages: false, licence: "LICENSED (use allowed by Schneider 2026-11-19) - never in git, CI logs or the submission CSV"}
+
+# --- Derived / extra series added by the business/data-fixes branch
+EP01: {provider: "Schneider epoxy file (resin, = EPX_RESIN)", formation: "monthly", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+BR01: {provider: "Derived brass proxy 0.63*D01 + 0.37*S05/S06", formation: "monthly average", realtime_lag: 1, revision_months: 0, vintages: false, licence: "public"}
+EL01: {provider: "Eurostat sts_inppd_m C26.1 EU27", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+EL02: {provider: "Eurostat sts_inppd_m C26.1 HU", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+EL03: {provider: "Eurostat sts_inppd_m C26.1 FR", formation: "monthly index", realtime_lag: 2, revision_months: 2, vintages: false, licence: "CC BY 4.0"}
+
+# --- Schneider epoxy file (challenge data)
+EPX_BENZENE: {provider: "Schneider epoxy file (challenge data)", formation: "monthly", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+EPX_ACETONE: {provider: "Schneider epoxy file (challenge data)", formation: "monthly", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+EPX_ECH: {provider: "Schneider epoxy file (challenge data)", formation: "monthly", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+EPX_OTHER: {provider: "Schneider epoxy file (challenge data)", formation: "monthly", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+EPX_RESIN: {provider: "Schneider epoxy file (challenge data)", formation: "monthly", realtime_lag: 1, revision_months: 0, vintages: false, licence: "challenge data (confidential)"}
+
+# --- Derived BOM cost index
+RM6_NE_IQI_433520: {provider: "Derived BOM cost index", formation: "built at each origin from its components", realtime_lag: 2, revision_months: 2, vintages: false, licence: "derived"}
+RMAirSeT_IIQ_24kV_IEC: {provider: "Derived BOM cost index", formation: "built at each origin from its components", realtime_lag: 2, revision_months: 2, vintages: false, licence: "derived"}

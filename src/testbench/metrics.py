@@ -42,22 +42,31 @@ def score_rows(fc: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def dm_test(e_model: np.ndarray, e_ref: np.ndarray, h: int) -> tuple[float, float]:
-    """Diebold-Mariano sur la différence d'erreurs absolues, variance Newey-West (h-1 retards) et
-    correction de Harvey-Leybourne-Newbold. Retourne (stat, p-value bilatérale). stat < 0 = modèle meilleur."""
-    d = np.abs(e_model) - np.abs(e_ref)
-    n = len(d)
+def _hac_t(d: np.ndarray, lags: int) -> tuple[float, int]:
+    """t-stat of mean(d): HAC variance (``lags`` unweighted autocovariances, as in DM) and Harvey-Leybourne-Newbold
+    correction with h = lags + 1. ``d`` must already be in time order. Returns (stat, n); stat is NaN when n < 10,
+    d is constant zero or the variance is not positive. Compare to t(n-1)."""
+    d = np.asarray(d, dtype=float)
+    n, h = len(d), lags + 1
     if n < 10 or np.allclose(d, 0):
-        return np.nan, np.nan
-    dbar = d.mean()
-    dc = d - dbar
+        return np.nan, n
+    dc = d - d.mean()
     gamma = [np.dot(dc[k:], dc[: n - k]) / n for k in range(h)]
     var = (gamma[0] + 2 * sum(gamma[1:])) / n
     if var <= 0:
+        return np.nan, n
+    stat = d.mean() / np.sqrt(var) * np.sqrt((n + 1 - 2 * h + h * (h - 1) / n) / n)  # HLN
+    return float(stat), n
+
+
+def dm_test(e_model: np.ndarray, e_ref: np.ndarray, h: int) -> tuple[float, float]:
+    """Diebold-Mariano sur la différence d'erreurs absolues, variance Newey-West (h-1 retards) et
+    correction de Harvey-Leybourne-Newbold. Retourne (stat, p-value bilatérale). stat < 0 = modèle meilleur.
+    Les erreurs doivent être triées par origine."""
+    stat, n = _hac_t(np.abs(e_model) - np.abs(e_ref), h - 1)
+    if np.isnan(stat):
         return np.nan, np.nan
-    stat = dbar / np.sqrt(var)
-    stat *= np.sqrt((n + 1 - 2 * h + h * (h - 1) / n) / n)  # HLN
-    return float(stat), float(2 * stats.t.sf(abs(stat), df=n - 1))
+    return stat, float(2 * stats.t.sf(abs(stat), df=n - 1))
 
 
 def summarize(scored: pd.DataFrame, by=("model", "series", "horizon"), ref: str = "naive") -> pd.DataFrame:
@@ -84,7 +93,7 @@ def summarize(scored: pd.DataFrame, by=("model", "series", "horizon"), ref: str 
                 if g["model"] == ref:
                     continue
                 sub = scored[(scored.model == g["model"]) & (scored.series == g["series"]) & (scored.horizon == g["horizon"])]
-                sub = sub.set_index(key_cols)["err"]
+                sub = sub.sort_values("origin").set_index(key_cols)["err"]  # DM needs time order
                 common = sub.index.intersection(refrows.index)
                 agg.loc[idx, ["DM_stat", "DM_p"]] = dm_test(sub[common].to_numpy(), refrows[common].to_numpy(), g["horizon"])
     return agg.round(4)

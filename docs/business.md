@@ -154,7 +154,7 @@ each module; EUR per box, % and kg only) and `compute_footprint.csv`.
 ## Caveats to say on the slides
 1. **Convergence is moderate.** Both products' material costs are driven up by copper, RM6 only slightly faster. Frame
    it as RM6 being more exposed to copper, not as "the gap is closing fast".
-2. **Teardowns underestimate copper** (Schneider's own teardown: [NDA] kg vs 0 kg in the official BOM), so
+2. **Teardowns underestimate copper** (Schneider's own teardown shows far less copper than the official BOM; figures kept in data/), so
    competitors are compared relative to Schneider's teardown, never in absolute terms.
 3. **Bands during trends.** During the 2025–26 rally the volatility-scaled bands were too narrow in a short check
    (50–57 % coverage at 6 months for the BOM indices vs the 80 % target), so calibration during trends is a known

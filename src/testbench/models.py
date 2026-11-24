@@ -211,3 +211,31 @@ def baseline_models() -> list:
     # (dépassements au-dessus du P90 inchangés, perte quantile pire à 9 mois) -> retiré du jeu par défaut.
     return [Naive(), NaiveGaussian(), NaiveVolScaled(), Conformal(DriftPoint()), Conformal(AR1Point()),
             Conformal(MeanReversionPoint())]
+
+
+@dataclass
+class DampedTrendETS:
+    """Classic benchmark: damped additive-trend exponential smoothing on log prices (statsmodels) for the P50,
+    with the volatility-scaled naive bands (``NaiveVolScaled``) re-centred on that P50. Fit on the last ``window``
+    months only; with less than ``min_obs`` months it is the naive_vol forecast."""
+
+    name: str = "ets_damped"
+    window: int = 120
+    min_obs: int = 36
+
+    def forecast(self, y, steps, exog=None):
+        bands = NaiveVolScaled().forecast(y, steps)
+        if len(y) < self.min_obs:
+            return bands
+        import warnings
+
+        from statsmodels.tsa.holtwinters import ExponentialSmoothing
+        ly = np.log(y.iloc[-self.window:].astype(float).to_numpy())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fit = ExponentialSmoothing(ly, trend="add", damped_trend=True, initialization_method="estimated").fit()
+            path = fit.forecast(max(steps))
+        last = float(y.iloc[-1])
+        p50 = np.array([np.exp(path[h - 1]) if np.isfinite(path[h - 1]) else last for h in steps])
+        p50 = np.clip(p50, last * np.exp(-0.5), last * np.exp(0.5))
+        return _frame(steps, p50 * bands["p10"].to_numpy() / last, p50, p50 * bands["p90"].to_numpy() / last)

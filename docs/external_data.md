@@ -41,7 +41,7 @@ intermédiaires US), `scrap_spread3` (ferraille vs acier), structure à terme et
 3. **Vérification sur 2024-2026**, jamais utilisée pour choisir quoi que ce soit.
 4. **Audit de perturbation** : tout le futur de toutes les colonnes (y compris externes) remplacé par du bruit →
    prévisions identiques, en modes submission et realtime (délais de publication des signaux dans
-   `signals.EXTERNAL_LAGS`).
+   `config/availability.yaml`).
 
 ## Limites
 - Les signaux sont surtout américains/mondiaux ; peu de séries chinoises gratuites et propres.
