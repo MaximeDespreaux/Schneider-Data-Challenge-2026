@@ -22,10 +22,18 @@ __pycache__/
 data/*
 !data/.gitkeep
 
-# NDA: private originals (public copies live in public/)
-/notebooks/
+# NDA: private originals (public copies live in public/). Only notebooks reviewed for sharing are tracked.
+/notebooks/*
+!/notebooks/01_eda_julia.ipynb
+!/notebooks/02_testbench_results.ipynb
+!/notebooks/build_01_eda.py
+!/notebooks/build_02_testbench.py
 /reports/
 /DATA_OVERVIEW.md
+
 # Real assumptions file contains licensed MEPS/CRU values: keep it local.
 # Share config/assumptions.example.yaml instead (copy it to assumptions.yaml and fill the licensed values).
 config/assumptions.yaml
+
+# Supplier names and checks (NDA): keep local, share config/suppliers.example.yaml instead.
+config/suppliers.local.yaml
