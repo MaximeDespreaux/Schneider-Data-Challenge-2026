@@ -134,3 +134,16 @@ indice à quantités fixes, pondéré en valeur, reconstruit à chaque origine (
 `.github/workflows/tests.yml` lance `uv run pytest` à chaque push. Les tests n'utilisent que des données synthétiques.
 
 Modules métier (pricing objectif A, objectif B, décarbonation) : voir [business.md](business.md).
+
+## Modélisation complémentaire (24/11)
+- **Modèle ML** : `src/testbench/ml_models.py::LGBMQuantile` (LightGBM quantile 10/50/90 %, dynamique propre de la
+  série). Scoré sur la vérification 2024-26 de `run_champion` à côté du champion. **Règle fixée avant les résultats**
+  (`run_champion.ml_replaces_champion`, même règle que champion v1/v2) : il remplace le champion seulement si sa rel_QL
+  médiane est plus basse ET sa couverture médiane ≥ celle du champion − 0,02. Si c'est le cas, ses prévisions sont
+  écrites sous le nom `champion` pour que le business suive automatiquement. Décision : `champion_vs_lgbm_q.csv`.
+- **Ljung-Box** sur les erreurs du P50 (origines non chevauchantes) : `metrics.ljung_box_table`, sortie
+  `champion_ljungbox.csv`. Kupiec et ETS amorti sont dans le pipeline renforcé (`src/testbench/pipeline.py`).
+- **KPSS + STL** (stationnarité / saisonnalité) : section 3 du notebook d'exploration `notebooks/01_eda_julia.ipynb`.
+- **Source des prévisions du business** (`src/business/forecasts.py`) : modèle de `config/business.yaml`
+  (`champion_wf`, passage noté) → à défaut le **champion** (`champion_holdout.parquet`) → à défaut `naive_vol`. Le cache
+  est invalidé automatiquement dès qu'un fichier source plus récent existe.

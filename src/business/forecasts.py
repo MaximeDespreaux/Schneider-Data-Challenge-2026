@@ -42,6 +42,23 @@ def source_path(prefer: str):
     return champion_path()
 
 
+def source_chain(prefer: str) -> list[str]:
+    """Models tried in order. The graded model (e.g. ``champion_wf``) first; if no graded run exists yet, the
+    champion holdout (``champion``), so the business numbers keep following the best available forecasts and
+    update by themselves as soon as a newer run appears. ``naive_vol`` remains the last resort."""
+    return [prefer] if prefer == "champion" else [prefer, "champion"]
+
+
+def pick_source(origin: pd.Timestamp, series, prefer: str):
+    """(model, file) of the first model in ``source_chain`` whose file has forecasts for every series, else
+    (None, None)."""
+    for m in source_chain(prefer):
+        f = source_path(m)
+        if champion_rows(f, origin, series, model=m) is not None:
+            return m, f
+    return None, None
+
+
 def champion_rows(champ, origin: pd.Timestamp, series, model: str = "champion") -> pd.DataFrame | None:
     """``model`` forecasts at the origin if the file has them for EVERY series, else None."""
     if not champ.exists():
@@ -71,7 +88,9 @@ def get_origin_forecasts(cfg: dict | None = None) -> pd.DataFrame:
     path = cache_path(cfg)
     origin = origin_ts(cfg)
     prefer = cfg["forecast_source"]["prefer"]
-    use, reason = cache_decision(path, source_path(prefer), origin, prefer)
+    guess = set(pd.read_parquet(path, columns=["series"])["series"]) if path.exists() else set(SERIES)
+    used, used_file = pick_source(origin, guess, prefer)
+    use, reason = cache_decision(path, used_file or source_path(prefer), origin, used or prefer)
     if use:
         df = pd.read_parquet(path)
         df.attrs = {"runtime_s": 0.0, "cached": True}
@@ -93,14 +112,16 @@ def get_origin_forecasts(cfg: dict | None = None) -> pd.DataFrame:
             warnings.warn(f"{s} absent from the panel: skipped", stacklevel=2)
 
     fc, source = None, None
-    champ = source_path(prefer)
-    fc = champion_rows(champ, origin, series, model=prefer)
-    if fc is not None:
-        source, why = prefer, f"{champ} has {prefer} forecasts for every series at {origin:%Y-%m}"
-    elif champ.exists():
-        why = f"{champ.name} lacks {prefer} forecasts for some series at {origin:%Y-%m}"
+    used, champ = pick_source(origin, series, prefer)
+    if used is not None:
+        fc = champion_rows(champ, origin, series, model=used)
+        source = used
+        why = f"{champ} has {used} forecasts for every series at {origin:%Y-%m}"
+        if used != prefer:
+            why += f" ({prefer} not available yet: no graded run with every series)"
     else:
-        why = f"{champ} not found (run the graded backtest, or src.external.run_champion for 'champion')"
+        why = (f"no forecasts for every series from {source_chain(prefer)} at {origin:%Y-%m} (run the graded "
+               "backtest, or src.external.run_champion)")
     if fc is None:
         if cfg["forecast_source"]["fallback_model"] != "naive_vol":
             raise ValueError(f"unknown fallback_model: {cfg['forecast_source']['fallback_model']}")

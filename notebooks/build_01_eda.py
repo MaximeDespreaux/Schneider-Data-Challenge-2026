@@ -69,7 +69,7 @@ Les L01–L08 (CRU/MEPS/ICIS sous licence) sont vides volontairement. → À l'o
 ne sont en réalité connus que jusqu'à ~2026-07 : il faut **nowcaster** les derniers mois, pas les imputer.""")
 
 md("## 2. Dynamique des prix (base 100 = nov. 2016)")
-code("""T = d.RM_TARGETS
+code("""T = d.SCHNEIDER_RM_TARGETS  # les 14 séries de Schneider (RM_TARGETS inclut aussi L01-L03, EP01, EL01)
 reb = rm[T] / rm[T].iloc[0] * 100
 fig, axes = plt.subplots(4, 4, figsize=(16, 11), sharex=True)
 for ax, s in zip(axes.flat, T):
@@ -91,16 +91,44 @@ md("""**Lecture.** Les prix cotés (LME, minerai) sont 2 à 4× plus volatils qu
 **forte autocorrélation des variations (momentum)** → les PPI sont structurellement plus prévisibles que les prix de marché.""")
 
 md("## 3. Stationnarité et saisonnalité")
-code("""def adf_p(s):
+code("""from statsmodels.tsa.stattools import kpss
+from statsmodels.tsa.seasonal import STL
+
+def adf_p(s):
     s = s.dropna()
     return adfuller(s, autolag="AIC")[1] if len(s) > 24 else np.nan
-st = pd.DataFrame({"ADF_p_log_level": np.log(rm[T]).apply(adf_p),
-                   "ADF_p_dlog": r.apply(adf_p)})
-# Saisonnalité : part de variance des variations expliquée par le mois calendaire
+def kpss_p(s):
+    # H0 de KPSS = stationnaire (l'inverse de l'ADF) ; p tronquée à [0,01 ; 0,10] par statsmodels
+    s = s.dropna()
+    return kpss(s, regression="c", nlags="auto")[1] if len(s) > 24 else np.nan
+def stl_seasonal_strength(s):
+    # force saisonnière de Hyndman : max(0, 1 - Var(résidu) / Var(saisonnier + résidu)), sur les log-niveaux
+    s = np.log(s.dropna())
+    res = STL(s, period=12, robust=True).fit()
+    return max(0.0, 1 - np.var(res.resid) / np.var(res.seasonal + res.resid))
+
+st = pd.DataFrame({"ADF_p_log_level": np.log(rm[T]).apply(adf_p), "KPSS_p_log_level": np.log(rm[T]).apply(kpss_p),
+                   "ADF_p_dlog": r.apply(adf_p), "KPSS_p_dlog": r.apply(kpss_p)})
+# Saisonnalité : part de variance des variations expliquée par le mois calendaire + force saisonnière STL
 st["seasonal_R2"] = [r[s].groupby(r.index.month).transform("mean").var() / r[s].var() for s in T]
+st["STL_seasonal_strength"] = [stl_seasonal_strength(rm[s]) for s in T]
+st["verdict"] = np.where((st.ADF_p_log_level > 0.05) & (st.KPSS_p_log_level < 0.05) & (st.ADF_p_dlog < 0.05),
+                         "I(1) confirmé (ADF + KPSS)", "à regarder")
 st.round(3)""")
-md("""**Lecture.** Niveaux en log non stationnaires, variations stationnaires → modéliser les **log-variations à h mois**.
-Saisonnalité faible (R² mensuel bas) : pas de terme saisonnier nécessaire, à reconfirmer série par série.""")
+code("""# Décomposition STL (tendance / saisonnalité / résidu) : cuivre (prix de marché) et acier EU (indice)
+fig, axes = plt.subplots(4, 2, figsize=(14, 9), sharex=True)
+for j, s in enumerate(["D01", "S09"]):
+    res = STL(np.log(rm[s].dropna()), period=12, robust=True).fit()
+    for i, (lab, comp) in enumerate([("log-prix", res.observed), ("tendance", res.trend),
+                                     ("saisonnalité", res.seasonal), ("résidu", res.resid)]):
+        axes[i, j].plot(comp.index, comp, lw=1.2)
+        axes[i, j].set_ylabel(lab)
+    axes[0, j].set_title(f"STL : {s} · {cat_rm.loc[s, 'material']}")
+fig.tight_layout(); save(fig, "03_stl")""")
+md("""**Lecture.** ADF (H0 : racine unitaire) et KPSS (H0 : stationnaire) concordent : les **log-niveaux sont non
+stationnaires, les log-variations stationnaires** → modéliser les **log-variations à h mois**. La saisonnalité est faible
+(R² mensuel bas, force saisonnière STL faible ; la composante saisonnière de STL est minuscule face à la tendance) :
+pas de terme saisonnier nécessaire.""")
 
 md("## 4. Qui bouge avant qui ? (lead-lag sur variations mensuelles)")
 code("""drivers = {"Brent EUR (ED01)": en["ED01"], "TTF EUR/MWh (ED02)": en["ED02"], "Power DE (E09)": en["E09"],
