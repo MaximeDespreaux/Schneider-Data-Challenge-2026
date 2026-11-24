@@ -95,7 +95,9 @@ values (licensed prices: never commit this file).
 | matplotlib | Matplotlib licence (PSF-based) |
 | lightgbm, openpyxl, pyyaml, pytest | MIT |
 | xgboost, pyarrow, requests | Apache-2.0 |
-| AI track (branch `EDA_reports`): Chronos-Bolt / Chronos-2 pretrained models, torch | Apache-2.0 / BSD-3-Clause |
+| AI track: Chronos-Bolt / Chronos-2 pretrained models, torch | Apache-2.0 / BSD-3-Clause |
+| AI track: Qwen3-14B run locally through Ollama | Apache-2.0 |
+| joblib | BSD-3-Clause |
 
 ## 7. Compute and CO₂
 
@@ -114,7 +116,10 @@ The usage of AI coding assistants by the team is **not** included (not measurabl
 - **Claude (Anthropic), through Claude Code**, was used by team members to write and review code, run analyses and draft
   documentation. Every result was re-run and checked by the team; tests and leak audits are part of the repository.
 - **Chronos-Bolt / Chronos-2** (Amazon, Apache-2.0), pretrained time-series models run locally and zero-shot, are
-  evaluated in the AI track (branch `EDA_reports`).
+  evaluated in the AI track (`src/ai/`).
+- **Qwen3-14B** (Alibaba, Apache-2.0), run locally through Ollama, is tested for feature proposals, news scoring and forecasts. The
+  Claude API can be used instead; both go through the same NDA gate (`src/ai/guard.py`). Status and results:
+  [src/ai/PLAN.md](src/ai/PLAN.md).
 - The `ai_tools` column of the submission CSV lists the tools used.
 
 ## 9. Responsible AI
@@ -167,42 +172,30 @@ champion, otherwise `naive_vol`, and refresh automatically when a newer forecast
 
 ```
 .
-├── data/            # challenge data (not tracked by git); zips extracted to data/raw/
-├── notebooks/       # 01_data_overview_eda, 02_forecasting_benchmark
-├── reports/figures/ # exported charts
-├── src/             # data_loading, features, models, backtest
-├── DATA_OVERVIEW.md # file-by-file data review & first EDA findings
+├── config/          # assumptions and suppliers templates (*.example.yaml), business.yaml, availability.yaml
+├── data/            # challenge data and outputs (not tracked by git)
+├── docs/            # setup, data fixes, external data, test bench, business, pre-registration
+├── notebooks/       # test-bench notebooks, committed without outputs (other notebooks stay local)
+├── public/          # NDA-safe copies of the analysis notebooks and reports, and the leak scanner
+├── src/             # data, external, testbench, business, checks; first benchmark (features, models, backtest)
+│   └── ai/          # AI track: pretrained models, LLM features / news / analyst (see src/ai/PLAN.md)
+├── tests/           # unit tests (synthetic data; the few that need the local data skip without it)
 ├── Makefile
 ├── pyproject.toml   # project metadata & dependencies
 └── uv.lock          # pinned dependency versions
 ```
 
-## Data
+Analysis notebooks and reports, in their NDA-safe version ([public/README.md](public/README.md)):
 
-Place the challenge files in `data/`. Its contents are gitignored — only the folder itself is tracked.
+- [00_data_profiling_preprocessing](public/notebooks/00_data_profiling_preprocessing.ipynb): file-by-file profiling and preprocessing (`src/preprocessing.py`)
+- [01_data_overview_eda](public/notebooks/01_data_overview_eda.ipynb) and [DATA_OVERVIEW](public/DATA_OVERVIEW.md): data review and first findings
+- [02_forecasting_benchmark](public/notebooks/02_forecasting_benchmark.ipynb): first rolling-origin benchmark (`src/features.py`, `src/models.py`, `src/backtest.py`)
+- [03_feature_study](public/notebooks/03_feature_study.ipynb): correlations, lead-lag, feature relevance
 
-## Analysis
-
-- [`notebooks/00_data_profiling_preprocessing.ipynb`](notebooks/00_data_profiling_preprocessing.ipynb) — file-by-file profiling (business context, all columns, missing values, duplicates, quirks) and the preprocessing that writes the model-ready parquet files to `data/processed/` (`src/preprocessing.py`).
-- [`DATA_OVERVIEW.md`](DATA_OVERVIEW.md) — senior-DS review of every data file, quality issues, key EDA findings, baselines and roadmap.
-- [`notebooks/01_data_overview_eda.ipynb`](notebooks/01_data_overview_eda.ipynb) — the executed EDA behind it.
-- [`notebooks/02_forecasting_benchmark.ipynb`](notebooks/02_forecasting_benchmark.ipynb) — leakage-safe rolling-origin benchmark of naive → ETS/ARIMA/Theta → dynamic regression → global LightGBM → conformal ensemble, plus production forecasts, BOM cost fan and forward-buy backtest (`src/features.py`, `src/models.py`, `src/backtest.py`).
-- [`notebooks/03_feature_study.ipynb`](notebooks/03_feature_study.ipynb) — correlation matrices (levels vs Δlog, Pearson/Spearman, family blocks, rolling), redundancy pruning, lead–lag CCF + Granger, per-target feature relevance (Spearman, mutual information, regime stability), VIF pruning and a leakage test. It writes `data/processed/feature_selection.parquet` and the training matrices `features_h{3,6,9}.parquet`.
-- [`src/data_loading.py`](src/data_loading.py) — `extract_archives()` plus tidy loaders (`load_rm_wide`, `load_energy_wide`, `load_meps`, `load_cru_flat`, `load_cru_stainless`, `load_lme`, `load_epoxy`, `load_benchmark`, `load_supplier_financials`, …).
-
-## Dependencies
-
-- Core: numpy, pandas, pyarrow, scikit-learn, matplotlib, seaborn, xgboost, lightgbm, openpyxl, statsmodels
-- Dev: jupyterlab, ipykernel
 ## 14. Git hooks
 
 `make install` (or `make hooks`) enables the hooks in `.githooks/`. The `pre-commit` hook blocks commits on `main` that modify config files (`pyproject.toml`, `uv.lock`, `Makefile`, `.gitignore`, `.python-version`, `.githooks/*`) — make those changes on a branch instead.
 
-## Git hooks
-
-`make install` (or `make hooks`) enables the hooks in `.githooks/`. The `pre-commit` hook blocks commits on `main` that modify config files (`pyproject.toml`, `uv.lock`, `Makefile`, `.gitignore`, `.python-version`, `.githooks/*`) — make those changes on a branch instead.
-
-## Make targets
 ## 15. Make targets
 
 | Target       | Description                                   |
@@ -223,4 +216,6 @@ Place the challenge files in `data/`. Its contents are gitignored — only the f
 | `compare`    | Champion v1 vs v2 + provided-series table      |
 | `business`   | Business modules + `REPORT.md`                 |
 | `submission` | Alias of `champion`                            |
+| `ai`         | AI track: pretrained models (installs torch)   |
+| `scan`       | NDA leak scan before every push                |
 | `all`        | data-check, fetch, test, champion, business    |

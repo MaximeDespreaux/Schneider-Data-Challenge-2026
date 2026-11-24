@@ -88,18 +88,33 @@ LGB_PARAMS = dict(n_estimators=150, learning_rate=0.03, num_leaves=7, min_child_
 def lgbm_predict(feat: pd.DataFrame, origin: pd.Timestamp, h: int,
                  quantiles: tuple[float, ...] = (0.1, 0.5, 0.9)) -> pd.DataFrame:
     """Global LightGBM pooled over all series. Returns one row per series observed at origin:
-    columns ``mean`` and ``q{α}`` for each quantile (all in log-change space)."""
+    columns ``mean`` and ``q{α}`` for each quantile (all in log-change space).
+
+    One fit per publication lag among the forecast series: a series published at month end must not train on rows
+    whose outcome (e.g. a Eurostat PPI) comes out two months later."""
     import lightgbm as lgb
+
+    from . import features as fe
 
     cols = [c for c in feat.columns if c.startswith(("own_", "x_"))]
     df = feat.reset_index()
     df["series_id"] = df["series"].astype("category")
     df["family_id"] = df["family"].astype("category")
     X_cols = cols + ["series_id", "family_id"]
-    train = df[(df.month <= origin - pd.DateOffset(months=h)) & df.y.notna() & df.y_level.notna()]
-    test = df[(df.month == origin) & df.y_level.notna()]
-    if test.empty or len(train) < 100:
-        return pd.DataFrame()
+    rows = df[df.y.notna() & df.y_level.notna()]
+    outcome = pd.DatetimeIndex(rows.month) + pd.DateOffset(months=h)
+    test_all = df[(df.month == origin) & df.y_level.notna()]
+    parts = []
+    for _, test in test_all.groupby(test_all.series.map(fe.pub_lag)):
+        known = fe.published_by(outcome, rows.series, origin, test.series.iloc[0]).to_numpy()
+        train = rows[known]
+        if len(train) >= 100:
+            parts.append(_lgbm_fit_predict(lgb, train, test, X_cols, quantiles))
+    return pd.concat(parts) if parts else pd.DataFrame()
+
+
+def _lgbm_fit_predict(lgb, train: pd.DataFrame, test: pd.DataFrame, X_cols: list[str],
+                      quantiles: tuple[float, ...]) -> pd.DataFrame:
     out = pd.DataFrame(index=test.series.values)
     m = lgb.LGBMRegressor(objective="regression", boost_from_average=False, random_state=0,
                           **LGB_PARAMS).fit(train[X_cols], train.y)

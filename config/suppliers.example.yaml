@@ -1,0 +1,8 @@
+# Template: copy to config/suppliers.local.yaml (git-ignored, NDA) and fill it. Never commit the filled file.
+companies:   # file_keyword = text that appears in the PitchBook file name
+  - {file_keyword: Supplier_A, name: Supplier A, country: FR, country_status: to confirm, sector: copper_products, sector_status: to confirm}
+  - {file_keyword: Supplier_B, name: Supplier B, country: DE, country_status: to confirm, sector: fabricated_metal, sector_status: to confirm}
+
+# Optional reference values to check the parser (warn, never fail); kEUR, and revenue rule a / b / c
+expected_keur: {}
+expected_rule: {}

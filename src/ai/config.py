@@ -21,8 +21,8 @@ PUBLIC_OUT = ROOT / "public" / "ai"             # NDA-safe outputs (scanned by p
 HORIZONS = (3, 6, 9)
 QUANTILES = (0.1, 0.5, 0.9)
 BACKTEST_START = "2020-01-01"   # same origins as notebooks/02 and src/backtest.py
-SELECTION_SPLIT = "2024-01-01"
-LIVE_ORIGIN = "2026-09-01"  # official forecast origin (Schneider CSV origin_month); data after it is ignored  # pre-registered: choose on targets before, report on targets from
+SELECTION_SPLIT = "2024-01-01"  # choose on TARGETS before it, report on ORIGINS from it (nothing straddles)
+LIVE_ORIGIN = "2026-09-01"  # official forecast origin (Schneider CSV origin_month); data after it is ignored
 
 MODELS: dict[str, dict] = {
     "chronos-bolt-small": {
@@ -44,6 +44,20 @@ MODELS: dict[str, dict] = {
         "source": "https://huggingface.co/amazon/chronos-2",
     },
 }
+# LLMs used by phases 2-4 (separate from MODELS, which the forecasting backtest loops over).
+LLMS: dict[str, dict] = {
+    "qwen3:14b": {
+        "kind": "local LLM via Ollama (no data leaves the machine)", "hf_id": "Qwen/Qwen3-14B (Q4_K_M GGUF)",
+        "revision": "ollama digest bdbd181c33f2", "licence": "Apache-2.0", "released": "2025-04-29",
+        "source": "https://huggingface.co/Qwen/Qwen3-14B",
+    },
+    "claude-opus-5-5": {
+        "kind": "Claude API (public data only, through src/ai/guard.py)", "hf_id": "-", "revision": "claude-opus-5-5",
+        "licence": "Anthropic commercial terms", "released": None,  # not verified: no clean window
+        "source": "https://docs.anthropic.com",
+    },
+}
+
 EXCLUDED = {
     "moirai": "Salesforce Moirai: CC-BY-NC-4.0 (non-commercial) - incompatible with a forecast Schneider may use.",
 }
@@ -53,8 +67,14 @@ EXCLUDED = {
 COVARIATES_FROM_DRIVERS = True
 
 
+def llm_released(model: str) -> pd.Timestamp | None:
+    """Release date of an LLM, or None if it is not registered or not verified (then there is no clean window)."""
+    d = LLMS.get(model, {}).get("released")
+    return None if d is None else pd.Timestamp(d)
+
+
 def licence_table() -> pd.DataFrame:
     rows = [{"tool": k, **{c: v[c] for c in ("kind", "hf_id", "revision", "licence", "released", "source")}}
-            for k, v in MODELS.items()]
+            for k, v in {**MODELS, **LLMS}.items()]
     rows += [{"tool": k, "kind": "excluded", "licence": v} for k, v in EXCLUDED.items()]
     return pd.DataFrame(rows)

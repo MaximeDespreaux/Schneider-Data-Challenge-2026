@@ -1,6 +1,6 @@
 """NDA leak scanner for everything that may be pushed.
 
-Usage:  uv run python public/scan_leaks.py [paths ...]      (default: public/ README.md src/)
+Usage:  uv run python public/scan_leaks.py [paths ...]      (default: every file git tracks or would add)
 Lines containing "nda-ok" are skipped (reviewed false positives).
 Exit code 1 if any private term, private number or structural problem is found.
 
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,7 +51,7 @@ def _num_variants(v: float) -> set[str]:
     if abs(v - r) < 1e-9 or abs(v) >= 500:
         # years and round numbers are too common in normal text to be evidence of a leak
         if abs(r) >= 100 and not (1990 <= r <= 2035) and r % 100 != 0:
-            out |= {f"{r}", f"{r:,}", f"{r:,}".replace(",", " "), f"{r:,}".replace(",", " ")}
+            out |= {f"{r}", f"{r:_}", f"{r:,}", f"{r:,}".replace(",", " "), f"{r:,}".replace(",", " ")}
     else:
         for d in (1, 2):
             s = f"{v:.{d}f}"
@@ -74,6 +75,7 @@ def build_denylists() -> tuple[set[str], set[str], set[str], set[str]]:
     for name in k.supplier.dropna():
         terms.add(name)
         terms.add(name.split(" (")[0])
+        terms.add(re.sub(r"\W+", "_", name.split(" (")[0]))  # as written in file names and keywords
     for col in k.select_dtypes("number").columns:
         if col.endswith("_keur"):
             for v in k[col].dropna():
@@ -160,20 +162,35 @@ def structural_problems(path: Path) -> list[str]:
     return probs
 
 
-def scan(paths: list[Path]) -> int:
+def compile_patterns() -> dict:
+    """Deny-list regexes. Shared by the file scan below and the AI track's API gate (src/ai/guard.py)."""
     terms, nums, kg, eur_m = build_denylists()
     em = "|".join(re.escape(n) for n in sorted(eur_m, key=len, reverse=True))
-    em_re = re.compile(rf"€\s?({em})(?![\d])|(?<![\w.,])({em})\s?(?:€\s?m|m€|m\b|M\b|million)")
-    term_re = re.compile("|".join(re.escape(t) for t in sorted(terms, key=len, reverse=True)), re.I)
     # PDF text extraction glues adjacent table cells ("2" + "118" -> "2 118"), so in PDFs the space-separated
     # spellings are skipped; the HTML the PDFs are rendered from is scanned with every spelling.
     pdf_nums = {n for n in nums if " " not in n and "\u202f" not in n}
-    num_re_pdf = re.compile(r"(?<![\w.,])(" + "|".join(re.escape(n) for n in sorted(pdf_nums, key=len, reverse=True))
-                            + r")(?![\w]|[.,]\d)")
-    kg_re = re.compile(r"(?<![\w.,])(" + "|".join(re.escape(n) for n in sorted(kg, key=len, reverse=True))
-                       + r")\s?kg\b", re.I)
-    num_re = re.compile(r"(?<![\w.,])(" + "|".join(re.escape(n) for n in sorted(nums, key=len, reverse=True))
-                        + r")(?![\w]|[.,]\d)")
+    alt = lambda xs: "|".join(re.escape(n) for n in sorted(xs, key=len, reverse=True))  # noqa: E731
+    return {
+        "eur_m": re.compile(rf"€\s?({em})(?![\d])|(?<![\w.,])({em})\s?(?:€\s?m|m€|m\b|M\b|million)"),
+        "term": re.compile(alt(terms), re.I),
+        "num_pdf": re.compile(r"(?<![\w.,])(" + alt(pdf_nums) + r")(?![\w]|[.,]\d)"),
+        "kg": re.compile(r"(?<![\w.,])(" + alt(kg) + r")\s?kg\b", re.I),
+        "num": re.compile(r"(?<![\w.,])(" + alt(nums) + r")(?![\w]|[.,]\d)"),
+        "sizes": (len(terms), len(nums) + len(kg) + len(eur_m)),
+    }
+
+
+def find_leaks(line: str, pats: dict, pdf: bool = False) -> list[str]:
+    """Private terms / numbers found in one line of text."""
+    out = [f"private term '{m.group(0)}'" for m in pats["term"].finditer(line)]
+    nre = pats["num_pdf"] if pdf else pats["num"]
+    for m in [*nre.finditer(line), *pats["kg"].finditer(line), *pats["eur_m"].finditer(line)]:
+        out.append(f"private number '{m.group(0)}'  …{line[max(0, m.start() - 40):m.end() + 40].strip()}…")
+    return out
+
+
+def scan(paths: list[Path]) -> int:
+    pats = compile_patterns()
     files = []
     for p in paths:
         p = p.resolve()
@@ -201,18 +218,21 @@ def scan(paths: list[Path]) -> int:
         for i, line in enumerate(file_text(f).splitlines(), 1):
             if "nda-ok" in line:  # reviewed false positive (e.g. a MAPE that equals a private number)
                 continue
-            for m in term_re.finditer(line):
-                print(f"{rel}:{i}: private term '{m.group(0)}'")
+            for hit in find_leaks(line, pats, pdf=f.suffix == ".pdf"):
+                print(f"{rel}:{i}: {hit}")
                 n_hits += 1
-            nre = num_re_pdf if f.suffix == ".pdf" else num_re
-            for m in [*nre.finditer(line), *kg_re.finditer(line), *em_re.finditer(line)]:
-                print(f"{rel}:{i}: private number '{m.group(0)}'  …{line[max(0, m.start() - 40):m.end() + 40].strip()}…")
-                n_hits += 1
-    print(f"\n{len(files)} files scanned, {len(terms)} terms + {len(nums) + len(kg) + len(eur_m)} numbers on the deny-list: "
+    print(f"\n{len(files)} files scanned, {pats["sizes"][0]} terms + {pats["sizes"][1]} numbers on the deny-list: "
           f"{'NO LEAK FOUND' if n_hits == 0 else f'{n_hits} PROBLEM(S)'}")
     return 1 if n_hits else 0
 
 
+def pushable() -> list[Path]:
+    """Every file git tracks or would add (git-ignored files never leave the machine). uv.lock holds only hashes."""
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], cwd=ROOT,
+                         capture_output=True, text=True, check=True).stdout
+    return [ROOT / f for f in out.split("\0") if f and f != "uv.lock" and (ROOT / f).is_file()]
+
+
 if __name__ == "__main__":
-    args = [Path(a) for a in sys.argv[1:]] or [PUBLIC, ROOT / "README.md", ROOT / "src"]
+    args = [Path(a) for a in sys.argv[1:]] or pushable()
     sys.exit(scan(args))

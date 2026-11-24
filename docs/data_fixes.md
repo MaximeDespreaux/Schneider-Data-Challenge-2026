@@ -15,8 +15,8 @@ panel is still built and a warning tells you what to do.
 | `L03` | Hot-dip galvanised coil, Germany (MEPS) | same file, sheet `MEPS`, column "HDG coil" | EUR/t | 1 month |
 | `EP01` | Epoxy resin, Europe | `data/raw/Epoxy for student.xlsx` (or `Epoxy_for_student.xlsx`), column `EPOXY_RESIN_EUR per TON` — `d.load_epoxy_series()` | EUR/t | 1 month |
 | `EL01` | Producer price index, NACE C26.1 "electronic components and boards", EU27 | Eurostat `sts_inppd_m`, downloaded by `fetch_public` into `data/raw/external/eurostat_ppi_long.csv` | index (2021 = 100) | 2 months |
-| `EL02` | Same index, Hungary (AirSeT plant) | same | index | 2 months |
-| `EL03` | Same index, France (RM6 plant) | same | index | 2 months |
+| `EL02` | Same index, Hungary | same | index | 2 months |
+| `EL03` | Same index, France | same | index | 2 months |
 | `BR01` | Brass, derived: 0.63 × copper `D01` + 0.37 × zinc `S05` / `S06` (USD per EUR) | computed from the panel | EUR/t | 1 month |
 
 - `L01`–`L03` are the challenge's own placeholders for licensed steel prices. They were empty in the panel; they are

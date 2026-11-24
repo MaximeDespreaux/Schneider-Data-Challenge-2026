@@ -5,7 +5,7 @@ header labels, never by fixed letters, so a reshuffled export fails loudly inste
 
 Output: EUR/t, month-start index named "month". Column ids follow Schneider's BOM mapping (eu_series_ids):
 L01 = MEPS Germany CR coil, L02 = CRU Germany 304 CR-2mm (base + alloy surcharge), L03 = MEPS Germany HDG coil,
-plus L01_FR = MEPS France CR coil (regional index for the RM6 plant; optional, skipped if absent).
+plus L01_FR = MEPS France CR coil (regional index; optional, skipped if absent).
 Schneider allowed MEPS/CRU use (2026-11-19). Licensed: never in git, CI logs or the submission CSV.
 """
 

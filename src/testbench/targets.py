@@ -60,7 +60,7 @@ def load_assumptions(path: Path = CONFIG) -> dict:
 
 def _series_for(a: dict, key: str, product: str | None = None) -> str:
     """Série de prix d'une matière ; acier sur indices Eurostat si ``steel_price_source: eurostat``.
-    ``material_series_by_product`` permet un indice régional par usine (ex. RM6 / France -> L01_FR)."""
+    ``material_series_by_product`` permet un indice régional par produit (ex. L01_FR)."""
     if a.get("steel_price_source") == "eurostat" and key in STEELS:
         return a["material_series_eurostat"][key]["series"]
     override = ((a.get("material_series_by_product") or {}).get(product) or {}).get(key)

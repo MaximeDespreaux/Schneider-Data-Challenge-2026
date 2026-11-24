@@ -28,8 +28,8 @@ Kept: public-source values (IMF, ECB, Eurostat, FRED, BLS, energy), rebased indi
 # 2. rebuild the public copies
 uv run python public/reports/make_public_figures.py
 uv run python public/reports/build_public_reports.py
-# 3. check: must print "NO LEAK FOUND"
-uv run python public/scan_leaks.py
+# 3. check (every file git would push): must print "NO LEAK FOUND"
+make scan
 ```
 
 Editing a public notebook: run it locally if you like, but **clear its outputs before committing** (`uv run jupyter nbconvert --clear-output --inplace public/notebooks/*.ipynb`). The scanner fails on any notebook output.

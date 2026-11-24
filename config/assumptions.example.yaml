@@ -46,7 +46,7 @@ material_series_eurostat:           # used only if steel_price_source = eurostat
   galvanised_steel: {series: S10}
 
 # Regional price index per plant (Schneider: "take care of region index evolution"). Overrides material_series
-# for one product. RM6 is built in France (REDACTED) -> MEPS France CR coil; AirSeT (Hungary) keeps Germany (L01).
+# for one product. One product uses the MEPS France CR coil, the other keeps Germany (L01).
 material_series_by_product:
   RM6: {carbon_steel: L01_FR}
 

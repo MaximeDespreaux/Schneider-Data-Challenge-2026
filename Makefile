@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install hooks lock lab clean clean-venv \
-	data-check fetch test verify backtest champion champion-v2 compare business submission all
+	data-check fetch test verify backtest champion champion-v2 compare business submission ai scan all
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -51,6 +51,12 @@ compare: ## Champion v1 vs v2 (pre-registered rule) + provided-series status tab
 
 business: ## Business modules (pricing levers, TCO, suppliers...) + REPORT.md
 	uv run python -m src.business.run_all
+
+ai: ## AI track (pretrained models): backtest, selection, live forecast (needs the local data)
+	uv run --group ai python -m src.ai.run
+
+scan: ## NDA leak scan of everything that may be pushed (needs the local data)
+	uv run python public/scan_leaks.py
 
 submission: champion ## Alias of champion: writes the draft submission CSV in data/outputs/testbench/
 

@@ -70,16 +70,8 @@ suppliers:
   # Team judgements the PitchBook files do not contain (they only hold financials). Revenue is NOT typed here:
   # it is parsed from the raw PitchBook files in data/raw/suppliers/ (see Task 8).
   revenue_proxy_asset_turnover: 1.2     # ASSUMPTION, used only when a file has no revenue at all (revenue = total assets x 1.2)
-  companies:   # file_keyword = text that appears in the PitchBook file name
-    - {file_keyword: REDACTED,              name: REDACTED,               country: FR, country_status: confirmed,  sector: copper_products,      sector_status: confirmed}
-    - {file_keyword: REDACTED,  name: REDACTED,   country: GB, country_status: confirmed,  sector: fabricated_metal,     sector_status: to confirm}
-    - {file_keyword: REDACTED,                         name: REDACTED,                          country: PL, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
-    - {file_keyword: REDACTED,           name: REDACTED, country: FR, country_status: confirmed,  sector: electrical_services,  sector_status: confirmed}
-    - {file_keyword: REDACTED,                      name: REDACTED,                       country: FR, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
-    - {file_keyword: REDACTED,                         name: REDACTED,                          country: AT, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
-    - {file_keyword: REDACTED,                 name: REDACTED,                  country: FR, country_status: to confirm, sector: electrical_equipment, sector_status: to confirm}
-    - {file_keyword: REDACTED,             name: REDACTED,            country: DE, country_status: to confirm, sector: fabricated_metal,     sector_status: to confirm}
-    - {file_keyword: REDACTED,                    name: REDACTED,                     country: FR, country_status: to confirm, sector: electrical_services,  sector_status: to confirm}
+  # companies: NOT here (NDA). They are read from config/suppliers.local.yaml (git-ignored);
+  # copy config/suppliers.example.yaml to create it.
 
 olivier_gaps:
   lme_reference:

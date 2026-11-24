@@ -28,8 +28,6 @@ from .paths import fig_dir, out_dir  # noqa: E402
 
 FIRST_COL = 12  # column M
 OVERVIEW_HDR, STATEMENT_HDR = 4, 5  # row 5 / row 6 (0-based)
-EXPECTED_KEUR = {}  # removed (NDA)
-EXPECTED_RULE = {"REDACTED": "b", "REDACTED": "c"}
 
 
 # ---------------------------------------------------------------------------------------------- parser
@@ -131,6 +129,9 @@ def parse_pitchbook(path, turnover: float) -> dict:
 def load_supplier_financials(cfg: dict) -> pd.DataFrame:
     sc = cfg["suppliers"]
     rows = []
+    if not sc.get("companies"):
+        raise FileNotFoundError("no supplier list: copy config/suppliers.example.yaml to config/suppliers.local.yaml "
+                                "(git-ignored, NDA) and fill it")
     for c in sc["companies"]:
         info = parse_pitchbook(find_file(c["file_keyword"]), float(sc["revenue_proxy_asset_turnover"]))
         rows.append({"name": c["name"], "country": c["country"], "country_status": c["country_status"],
@@ -210,11 +211,11 @@ def run(cfg: dict | None = None) -> dict:
     out = out_dir()
     fin = load_supplier_financials(cfg)
     for r in fin.itertuples():  # check against expected values (warn, never fail)
-        exp = EXPECTED_KEUR.get(r.name)
+        exp, rule = sc.get("expected_keur", {}).get(r.name), sc.get("expected_rule", {}).get(r.name)
         if exp is not None and round(r.revenue_keur) != exp:
             print(f"WARNING {r.name}: revenue {r.revenue_keur:,.0f} kEUR, expected {exp:,}")
-        if r.name in EXPECTED_RULE and r.revenue_rule != EXPECTED_RULE[r.name]:
-            print(f"WARNING {r.name}: revenue rule {r.revenue_rule}, expected {EXPECTED_RULE[r.name]}")
+        if rule is not None and r.revenue_rule != rule:
+            print(f"WARNING {r.name}: revenue rule {r.revenue_rule}, expected {rule}")
     fin.to_csv(out / "supplier_financials.csv", index=False)
 
     peers = generate_peers(cfg)
