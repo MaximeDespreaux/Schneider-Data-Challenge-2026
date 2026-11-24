@@ -44,7 +44,7 @@ What we expect: market prices are close to a random walk, so the AI models shoul
 | Chronos-2 + classical average | 399 | **0.94** | 0.98 | 1.30 | 0.93 |
 | Chronos-2 P50 + naive_vol fan | 399 | 1.01 | 0.80 | 1.07 | 0.82 |
 | Chronos-2 ~ naive_vol quantile average | 399 | 1.00 | 0.82 | 1.09 | 0.81 |
-| Pre-registered pick | 399 | 0.97 | 0.79 | 1.06 | 0.85 |
+| Pre-registered pick | 399 | 0.97 | 0.78 | 1.04 | 0.85 |
 
 The clean window for Chronos-2 is 12 target months only: overlapping forecasts, so few independent observations.
 
@@ -53,20 +53,22 @@ The clean window for Chronos-2 is 12 target months only: overlapping forecasts, 
 | Model | Error vs naive | Range quality vs naive | Range quality vs naive_vol | Coverage |
 |---|---|---|---|---|
 | naive_vol (team benchmark) | 1.00 | 0.73 | 1 | 0.85 |
-| Classical ensemble (refit here) | 1.04 | 1.00 | 1.38 | 0.96 |
+| Classical ensemble (refit here) | 1.05 | 1.00 | 1.38 | 0.96 |
 | Chronos-Bolt base | 1.06 | 0.83 | 1.14 | 0.88 |
 | Chronos-2 with drivers | 0.97 | 0.82 | 1.12 | 0.86 |
 | Chronos-2 P50 + naive_vol fan | 0.97 | 0.75 | 1.02 | 0.88 |
 | Chronos-2 ~ naive_vol quantile average | 0.97 | 0.75 | 1.03 | 0.89 |
 | Pre-registered pick | **0.95** | 0.77 | 1.06 | 0.90 |
 
-**Correction (2026-11-24).** The first version reported every *target month* from 2024 (n = 1191). 216 of those forecasts were made in 2023, so the pick used outcomes not known at their origin. Reporting now starts at *origins* from 2024; the choice rule (targets before 2024) and the choices are unchanged. Other fixes: pooled bands and the pooled LightGBM only use published outcomes; live bands only use outcomes up to the official origin.
+**Correction (2026-11-24).** The first version reported every *target month* from 2024 (n = 1191). 216 of those forecasts were made in 2023, so the pick used outcomes not known at their origin. Reporting now starts at *origins* from 2024; the choice rule (targets before 2024) is unchanged; one choice of 36 changed (copper in EUR at 3 months: `naive_vol` → `ensemble`, which moves that live forecast by up to 8%). On the rows all candidates share it stays `naive_vol`: the flip comes from the open issue below. Other fixes: pooled bands and the pooled LightGBM only use published outcomes; live bands only use outcomes up to the official origin. Nothing dated after the origin is used, even when it would already be published.
 
 | Error vs naive / range quality vs naive_vol | Before | After (origins from 2024) | Clean window |
 |---|---|---|---|
 | Chronos-2 with drivers | 0.99 / 1.07 | 0.97 / 1.12 | 1.01 / 1.28 |
 | Chronos-2 ~ naive_vol quantile average | 0.96 / 1.01 | 0.97 / 1.03 | 1.00 / 1.09 |
-| Pre-registered pick | 0.97 / 1.04 | 0.95 / 1.06 | 0.97 / 1.06 |
+| Pre-registered pick | 0.97 / 1.04 | 0.95 / 1.06 | 0.97 / 1.04 |
+
+**Open issue (found 2026-11-24, rule not changed).** The selection compares mean losses on each candidate's own rows (29 to 45 before 2024, unequal in all 36 series × horizon pairs), because classical bands start later. On common rows, 6 of the 36 choices would differ. Not a look-ahead, but the pick should be re-registered on common rows before it is used.
 
 **Reading:**
 - **naive_vol is the range model to beat, and no AI model beats it** in either window. Against plain naive the AI ranges look better; most of that comes from naive's fixed, shock-inflated bands.
@@ -87,7 +89,7 @@ cp .env.example .env    # then fill ANTHROPIC_API_KEY (phases 2-4); .env is git-
 uv run --group ai python -m src.ai.llm                           # connectivity check (a few tokens)
 ```
 
-Outputs (private, `data/outputs/ai/`): `ai_backtest.parquet`, `ai_scores_*.csv`, `ai_selection.csv`, `ai_live_forecast.parquet`, `team_xhec_forecast_ai.csv`, `ai_licences.csv`, `ai_compute_footprint.csv`.
+Outputs (private, `data/outputs/ai/`): `ai_backtest.parquet`, `ai_scores_*.csv`, `ai_selection.csv`, `ai_live_forecast.parquet`, `team_01_forecast_ai.csv` (publishable series only; licensed CRU series stay in `ai_live_forecast.parquet`), `ai_licences.csv`, `ai_compute_footprint.csv`.
 
 ## 6. Files
 

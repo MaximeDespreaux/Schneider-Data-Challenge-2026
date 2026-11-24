@@ -18,7 +18,8 @@ make install               # creates .venv from uv.lock and enables the git hook
 
 ## c. Data folder
 `data/` is **gitignored: never commit anything in it.** The steel workbook is **licensed** (MEPS/CRU): keep it on your
-machine only. Put the files under `data/raw/` with exactly these names (`make data-check` verifies them):
+machine only. If the files are still as delivered (in `data/`, with `data.zip` and the supplier archive extracted in
+`data/raw/`), `uv run python -m src.setup_data` copies them into place (never overwrites). Otherwise put the files under `data/raw/` with exactly these names (`make data-check` verifies them):
 
 ```
 data/raw/
@@ -59,7 +60,8 @@ Same idea for the assumptions:
 ```bash
 cp config/assumptions.example.yaml config/assumptions.yaml
 ```
-Then replace every `null` marked `FILL_LOCALLY`. The base month is the forecast origin, **2026-09**. Values are in
+Then replace every `null` marked `FILL_LOCALLY`, and fill `material_series_by_product` (which product uses which regional steel
+index: under NDA, ask the team). The base month is the forecast origin, **2026-09**. Values are in
 EUR per kg (EUR/t ÷ 1000). Where each one comes from:
 
 | Key | Where the value comes from |

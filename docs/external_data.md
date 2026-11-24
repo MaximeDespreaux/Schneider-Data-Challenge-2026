@@ -36,9 +36,12 @@ intermédiaires US), `scrap_spread3` (ferraille vs acier), structure à terme et
 1. **Criblage** (`screen.py`) : uniquement des cibles **antérieures à 2024**. Un signal n'est retenu que si sa
    corrélation avec la variation future a le **même signe sur 2003-2012 et 2013-2023** et dépasse 2/√(fenêtres
    indépendantes).
-2. **Règle du modèle final fixée avant vérification** (`models.py::Champion`) : régression ridge prudente sur les
-   signaux retenus si au moins 3 signaux stables existent pour (série, horizon), sinon naïf ; fourchette `naive_vol`.
-3. **Vérification sur 2024-2026**, jamais utilisée pour choisir quoi que ce soit.
+   Ce criblage global n'est plus qu'une sortie d'exploration (poids BOM ancrés en 2026-09).
+2. **Règle du modèle final fixée avant vérification** (`models.py::ChampionWF`) : criblage refait à chaque origine sur les
+   seules cibles réalisées, puis régression ridge prudente si au moins 3 signaux stables existent pour (série, horizon),
+   sinon naïf ; fourchette `naive_vol`. Les séries absentes au bord du live sont masquées à chaque origine.
+3. **Vérification sur 2024-2026.** Ce n'est pas un test vierge : elle sert aussi aux règles v1 / v2 et champion / LightGBM
+   (fixées avant de voir les résultats).
 4. **Audit de perturbation** : tout le futur de toutes les colonnes (y compris externes) remplacé par du bruit →
    prévisions identiques, en modes submission et realtime (délais de publication des signaux dans
    `config/availability.yaml`).
