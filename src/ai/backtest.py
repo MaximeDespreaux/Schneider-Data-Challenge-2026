@@ -61,14 +61,14 @@ def add_cqr(res: pd.DataFrame, model: str, name: str | None = None, alpha: float
             min_resid: int = 12) -> pd.DataFrame:
     """Online conformalised quantile regression (Romano et al. 2019) on a model's own P10/P90.
 
-    At each origin, only forecasts already realised (target_month <= origin) are used to measure how far the
+    At each origin, only forecasts already realised and published (``features.published_by``) are used to measure how far the
     P10–P90 band missed; the band is widened (or narrowed) by that conformity quantile.
     """
     r = res[res.model == model].copy().sort_values("origin")
     e = np.maximum(r.q10 - r.actual, r.actual - r.q90)
     adj = []
     for _, row in r.iterrows():
-        past = (r.h == row.h) & (r.target_month <= row.origin)
+        past = (r.h == row.h) & fe.published_by(r.target_month, r.series, row.origin, row.series)
         own = e[past & (r.series == row.series)]
         pool = own if len(own) >= min_resid else e[past]
         n = len(pool)
@@ -110,14 +110,17 @@ def compare(res: pd.DataFrame, models: list[str], window: pd.Series | None = Non
 def select_preregistered(res: pd.DataFrame, candidates: list[str], split: str = C.SELECTION_SPLIT,
                          name: str = "ai_selected") -> tuple[pd.DataFrame, pd.DataFrame]:
     """Pre-registered rule: per (series, h) pick the candidate with the lowest P10/P90 pinball loss on targets
-    BEFORE ``split``; the chosen model's rows from ``split`` on become ``name`` (the only rows reported)."""
+    BEFORE ``split``; the chosen model's rows with ORIGIN from ``split`` on become ``name`` (the only rows reported).
+
+    Embargo: a forecast made in 2023 for a 2024 month is in neither set. The choice uses outcomes up to December
+    2023, which were not known at that origin."""
     cut = pd.Timestamp(split)
     pre = res[(res.model.isin(candidates)) & (res.target_month < cut)].dropna(subset=["q10", "q90"])
     pin = pre.assign(pl=lambda d: (np.maximum(0.1 * (d.actual - d.q10), -0.9 * (d.actual - d.q10))
                                    + np.maximum(0.9 * (d.actual - d.q90), -0.1 * (d.actual - d.q90))) / 2)
     choice = pin.groupby(["series", "h", "model"]).pl.mean().groupby(["series", "h"]).idxmin().map(lambda t: t[2])
     choice = choice.rename("chosen").reset_index()
-    post = res[res.target_month >= cut].merge(choice, on=["series", "h"])
+    post = res[res.origin >= cut].merge(choice, on=["series", "h"])
     sel = post[post.model == post.chosen].drop(columns="chosen").assign(model=name)
     return pd.concat([res, sel], ignore_index=True), choice
 

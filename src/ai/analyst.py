@@ -5,6 +5,8 @@
 * Prompt: 24 months of each series rebased to 100 at the forecast month, with relative month labels and no dates,
   plus 12 months of EUR/USD, Brent and TTF gas (also rebased, lagged by their publication delay). No date and no
   level make it harder for the model to recall what happened next.
+* Timing: one prompt covers series with different publication lags, so a forecast month is a DECISION month and each
+  series stops at ``decision - its publication lag``. t0 (and the row's origin) is therefore specific to each series.
 * One call per forecast month, all 7 series at once; JSON schema output (percent changes at h = 3/6/9).
 * Contamination: the model may have seen 2024-25 prices in pre-training. Only target months after its release
   (``config.LLMS[model]['released']``) are a fair test; earlier months are reported separately and flagged.
@@ -63,32 +65,37 @@ def _block(y: pd.Series, n: int) -> str:
     return "; ".join(f"t-{k - i}={_fmt(v)}" if k - i else f"t0={_fmt(v)}" for i, v in enumerate(idx))
 
 
-def prompt(origin: pd.Timestamp, T: pd.DataFrame, X: pd.DataFrame) -> str:
+def _cut(series: str, decision: pd.Timestamp, lagged: bool) -> pd.Timestamp:
+    """Last month of ``series`` published at ``decision`` (month end). ``lagged=False``: data already cut (live)."""
+    return decision - pd.DateOffset(months=fe.pub_lag(series) if lagged else 0)
+
+
+def prompt(origin: pd.Timestamp, T: pd.DataFrame, X: pd.DataFrame, lagged: bool = True) -> str:
     cat = pd.read_parquet(C.ROOT / "data" / "processed" / "series_catalog.parquet")
     guard.public_frame(T[SERIES])
     guard.public_frame(X[list(CONTEXT)])
-    lines = ["Each series is rebased to 100 at t0, the latest month (t-1 is one month earlier, and so on).", ""]
+    lines = ["Each series is rebased to 100 at t0, its latest published month (t-1 is one month earlier, and so on).", ""]
     for s in SERIES:
-        lines += [f"{s} - {cat.at[s, 'description']}:", _block(T[s].loc[:origin], 24), ""]
+        lines += [f"{s} - {cat.at[s, 'description']}:", _block(T[s].loc[:_cut(s, origin, lagged)], 24), ""]
     lines += ["Context (rebased to 100 at its latest published month):"]
     for c, name in CONTEXT.items():
-        lag = max(0, fe.pub_lag(c) - 1)
-        lines += [f"{name}:", _block(X[c].loc[:origin - pd.DateOffset(months=lag)], 12)]
+        lines += [f"{name}:", _block(X[c].loc[:_cut(c, origin, lagged)], 12)]
     lines += ["", "For every series, give P10, P50 and P90 of the percent change from t0 to t+3, t+6 and t+9 "
               "(e.g. -4.5 means 4.5% lower than at t0), and a one-sentence rationale."]
     return "\n".join(lines)
 
 
-def forecast(origin: pd.Timestamp, T, X) -> pd.DataFrame:
-    out = llm.ask(prompt(origin, T, X), system=SYSTEM, schema=_schema(), tag=f"analyst/{origin:%Y-%m}",
+def forecast(origin: pd.Timestamp, T, X, lagged: bool = True) -> pd.DataFrame:
+    out = llm.ask(prompt(origin, T, X, lagged), system=SYSTEM, schema=_schema(), tag=f"analyst/{origin:%Y-%m}",
                   max_tokens=12000)
     rows = []
     for s in SERIES:
+        t0 = T[s].loc[:_cut(s, origin, lagged)].last_valid_index()
         for h in C.HORIZONS:
             q = out[s][f"h{h}"]
             p = np.sort([q["p10"], q["p50"], q["p90"]])
             lq = np.log1p(np.clip(p, -95, 500) / 100)
-            rows.append(dict(series=s, origin=origin, h=h, model="llm_analyst", pred=lq[1], q10=lq[0], q50=lq[1],
+            rows.append(dict(series=s, origin=t0, h=h, model="llm_analyst", pred=lq[1], q10=lq[0], q50=lq[1],
                              q90=lq[2], rationale=out[s]["rationale"]))
     return pd.DataFrame(rows)
 
@@ -114,8 +121,10 @@ def evaluate(res: pd.DataFrame | None = None) -> pd.DataFrame:
     base = pd.read_parquet(C.OUT / "ai_backtest.parquet")
     base = base[base.model.isin(["naive", "naive_vol", "chronos-2+cov", "chronos2~naive_vol"]) & base.series.isin(SERIES)]
     allr = pd.concat([base, res.drop(columns="rationale")], ignore_index=True)
-    allr = allr[allr.origin.isin(res.origin.unique())]
-    released = pd.Timestamp(C.LLMS[llm.OLLAMA_MODEL if llm.PROVIDER == "ollama" else llm.MODEL]["released"])
+    allr = allr.merge(res[["series", "origin", "h"]].drop_duplicates(), on=["series", "origin", "h"])
+    released = C.llm_released(llm.model_in_use())
+    if released is None:  # unverified release date: everything counts as possibly contaminated
+        released = pd.Timestamp.max
     models = ["llm_analyst", "chronos-2+cov", "chronos2~naive_vol"]
     out = {}
     for b in ("naive", "naive_vol"):
@@ -133,7 +142,11 @@ def live() -> pd.DataFrame:
     T, X = fe.build_panel()
     cut = pd.Timestamp(C.LIVE_ORIGIN)
     Tl, Xl = T.loc[:cut], X.loc[:cut]
-    f = forecast(cut, Tl, Xl)
+    last = {s: Tl[s].last_valid_index() for s in SERIES}
+    if any(m != cut for m in last.values()):  # the prompt asks for t0 + h, which must be the official origin + h
+        raise RuntimeError(f"live analyst forecast needs every series up to {cut:%Y-%m}, got {last}")
+    OUT.mkdir(parents=True, exist_ok=True)
+    f = forecast(cut, Tl, Xl, lagged=False)  # team convention: everything dated <= the official origin is known
     f["last_obs"] = [Tl[s].last_valid_index() for s in f.series]
     f["y_origin"] = [Tl[s].dropna().iloc[-1] for s in f.series]
     for q in ("q10", "q50", "q90"):

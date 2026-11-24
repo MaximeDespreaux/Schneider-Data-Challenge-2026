@@ -21,8 +21,8 @@ PUBLIC_OUT = ROOT / "public" / "ai"             # NDA-safe outputs (scanned by p
 HORIZONS = (3, 6, 9)
 QUANTILES = (0.1, 0.5, 0.9)
 BACKTEST_START = "2020-01-01"   # same origins as notebooks/02 and src/backtest.py
-SELECTION_SPLIT = "2024-01-01"
-LIVE_ORIGIN = "2026-09-01"  # official forecast origin (Schneider CSV origin_month); data after it is ignored  # pre-registered: choose on targets before, report on targets from
+SELECTION_SPLIT = "2024-01-01"  # choose on TARGETS before it, report on ORIGINS from it (nothing straddles)
+LIVE_ORIGIN = "2026-09-01"  # official forecast origin (Schneider CSV origin_month); data after it is ignored
 
 MODELS: dict[str, dict] = {
     "chronos-bolt-small": {
@@ -53,7 +53,8 @@ LLMS: dict[str, dict] = {
     },
     "claude-opus-5-5": {
         "kind": "Claude API (public data only, through src/ai/guard.py)", "hf_id": "-", "revision": "claude-opus-5-5",
-        "licence": "Anthropic commercial terms", "released": "2026-01-01", "source": "https://docs.anthropic.com",
+        "licence": "Anthropic commercial terms", "released": None,  # not verified: no clean window
+        "source": "https://docs.anthropic.com",
     },
 }
 
@@ -64,6 +65,12 @@ EXCLUDED = {
 # Drivers given to Chronos-2 as past covariates (same economic drivers as the dynamic regression,
 # src/features.py::DRIVERS), shifted by their extra publication lag so no unpublished value is used.
 COVARIATES_FROM_DRIVERS = True
+
+
+def llm_released(model: str) -> pd.Timestamp | None:
+    """Release date of an LLM, or None if it is not registered or not verified (then there is no clean window)."""
+    d = LLMS.get(model, {}).get("released")
+    return None if d is None else pd.Timestamp(d)
 
 
 def licence_table() -> pd.DataFrame:
