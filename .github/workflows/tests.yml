@@ -1,0 +1,18 @@
+# Lance les tests du banc de test à chaque push / PR. Les tests utilisent des données SYNTHÉTIQUES :
+# aucune donnée Schneider n'est nécessaire ni téléchargée (data/ reste vide en CI).
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Installer les dépendances (versions figées de uv.lock)
+        run: uv sync --frozen
+      - name: Tests
+        run: uv run pytest -q tests

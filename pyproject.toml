@@ -25,6 +25,7 @@ ai = [
 dev = [
     "jupyterlab",
     "ipykernel",
+    "pytest>=9.2.0",
 ]
 
 [tool.uv]
