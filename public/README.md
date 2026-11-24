@@ -21,6 +21,10 @@ The challenge data is under an **NDA with Schneider Electric** and includes lice
 
 Kept: public-source values (IMF, ECB, Eurostat, FRED, BLS, energy), rebased indices, % changes, correlations, error metrics and feature rankings.
 
+## Status of the numbers
+
+The reports and figures were computed before the fixes of 2026-11-24 (pooled LightGBM and prediction bands now only use outcomes published by the forecast date and dated up to it). Scores of `lgbm`, `ensemble` and their ranges need a rebuild from the private notebooks.
+
 ## Workflow
 
 ```bash

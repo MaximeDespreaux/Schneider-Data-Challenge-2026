@@ -46,13 +46,13 @@ def _test_signal(x: pd.Series, fut: pd.Series, h: int, periods=None, min_rows: i
 
 
 def screen_at(info: pd.DataFrame, target: str, horizons=(3, 6, 9), max_keep: int = 6,
-              min_rows: int = 60, extended: bool = False) -> dict[tuple[str, int], list[str]]:
+              min_rows: int = 60, extended: bool = False, cross=None) -> dict[tuple[str, int], list[str]]:
     """Criblage walk-forward : {(target, h): signaux retenus, plus fort |corr| d'abord, au plus ``max_keep``}.
 
     N'utilise que les paires (signal à τ, variation τ -> τ+h) avec τ+h <= dernier mois valide de ``info[target]`` :
     à une origine, seules les cibles déjà réalisées comptent. Sous-périodes de stabilité = première et seconde
     moitié de ces paires. Même règle que ``screen`` (``_test_signal``)."""
-    feats = make_features(info, target, extended=extended)
+    feats = make_features(info, target, cross=cross, extended=extended)
     ly = np.log(info[target])
     last = info[target].last_valid_index()
     out = {}

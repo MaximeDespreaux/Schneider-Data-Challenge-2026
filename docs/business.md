@@ -162,9 +162,9 @@ each module; EUR per box, % and kg only) and `compute_footprint.csv`.
 
 ## Organiser clarifications (23 Nov 2026) — how we address them
 
-Three modules in `src/business/olivier_gaps/` close the remaining gaps. `run_all` runs them after `suppliers`, and they
-also run alone with `uv run python -m src.business.olivier_gaps.run` (about 2 s). Outputs go to
-`data/outputs/business/olivier_gaps/` and the figures `olivier_lme_reference.png` and `olivier_sensitivity_tornado.png`.
+Three modules in `src/business/clarifications/` close the remaining gaps. `run_all` runs them after `suppliers`, and they
+also run alone with `uv run python -m src.business.clarifications.run` (about 2 s). Outputs go to
+`data/outputs/business/clarifications/` and the figures `lme_reference.png` and `sensitivity_tornado.png`.
 The figures quoted below come from the run of 23 Nov 2026, with origin 2026-09 and BOM xlsx_v2.
 
 | # | Point | What we did | Where | Key computed number |

@@ -8,7 +8,7 @@
 uv run python -m src.testbench.pipeline --dev        # fenêtre DEV : origines 2010-01 → 2021-12, cibles < 2022-01
 uv run python -m src.testbench.pipeline --canaries   # tests anti-fuite sur données réelles -> data/outputs/canaries/<commit>.json
 uv run python -m src.testbench.pipeline --graded     # UNE seule fois : commit tagué, arbre propre, canaris OK
-uv run python -m src.testbench.pipeline --submit     # CSV origine 2026-09 (wf_blend), à partir du run gradé
+uv run python -m src.testbench.pipeline --submit     # CSV origine 2026-09 (modèle candidates.SUBMITTED), à partir du run gradé
 uv run python -m src.business.run_margin_replay      # Goal A : quelle politique de devis protège la marge ?
 ```
 
@@ -20,7 +20,7 @@ uv run python -m src.business.run_margin_replay      # Goal A : quelle politique
   acier régional par produit (MEPS France CR), composantes prolongées jusqu'à l'origine (indice = 100),
   historique chaîné quand une composante démarre plus tard. Plastiques / électronique : niveau EUR/kg de config.
 - **Choix du modèle walk-forward** (`meta.py`) : à chaque origine, seulement les prévisions déjà réalisées ;
-  `wf_best`, `wf_blend` (modèle soumis), `wf_median`. Plus de choix sur 2024-26 (déjà regardé).
+  `wf_best`, `wf_blend`, `wf_median` (modèle soumis : `candidates.SUBMITTED` = `champion_wf`). Plus de choix sur 2024-26 (déjà regardé).
 - **Statistiques** (`stats.py`) : DM ordonné (HAC + HLN), Clark-West, DM groupé par famille + Holm, IC bootstrap
   par blocs, MDE par placebos, Kupiec / Christoffersen / Ljung-Box sur origines non chevauchantes.
 - **Canaris** (`canaries.py`) : fuite plantée, cible permutée, identité de troncature, décalage d'un mois.

@@ -1,5 +1,7 @@
 """Causal BOM cost index (synthetic data only)."""
 
+import copy
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -27,7 +29,7 @@ def toy(monkeypatch):
          "material_series": {"copper": {"series": "D01"}, "carbon_steel": {"series": "L01"},
                              "stainless_steel": {"series": "L02"}, "plastics": {"series": "S11"},
                              "electronics": {"series": "EL01"}},
-         "material_series_by_product": {"RM6": {"carbon_steel": "L01_FR"}},
+         "material_series_by_product": {"AirSeT": {"carbon_steel": "L01_FR"}},
          "eur_per_kg_at_base": {k: {"value": v} for k, v in
                                 {"copper": 12.0, "carbon_steel": .8, "stainless_steel": 2.7, "plastics": 2.5}.items()},
          "extras": {"electronics": {"include": True,
@@ -65,13 +67,13 @@ def test_regional_override_and_late_component_dropped(toy):
     p, a = toy
     der = tg.make_bom_deriver(p, a)
     w_late = der.weights_at(p, p.index[60]).set_index(["product", "material"])
-    assert w_late.loc[("RM6", "carbon_steel"), "series"] == "L01_FR"
-    assert w_late.loc[("AirSeT", "carbon_steel"), "series"] == "L01"
+    assert w_late.loc[("AirSeT", "carbon_steel"), "series"] == "L01_FR"
+    assert w_late.loc[("RM6", "carbon_steel"), "series"] == "L01"
     w_early = der.weights_at(p, p.index[10]).set_index(["product", "material"])
-    assert ("RM6", "carbon_steel") not in w_early.index            # L01_FR unknown at that origin
-    assert np.isclose(w_early.xs("RM6")["weight"].sum(), 1.0)
+    assert ("AirSeT", "carbon_steel") not in w_early.index         # L01_FR unknown at that origin
+    assert np.isclose(w_early.xs("AirSeT")["weight"].sum(), 1.0)
     out = der(p.loc[: p.index[10]], p.loc[: p.index[10]], p.index[10])
-    assert np.isclose(out.loc[p.index[10], "RM6_NE_IQI_433520"], 100.0)
+    assert np.isclose(out.loc[p.index[10], "RMAirSeT_IIQ_24kV_IEC"], 100.0)
 
 
 def test_index_priced_materials_use_config_level(toy):
@@ -95,3 +97,19 @@ def test_history_uses_available_components_but_truth_needs_all(toy):
     q.loc[p.index[90], "L02"] = np.nan                   # a component missing at a target month
     truth = der(q, q.loc[:o], o)["RM6_NE_IQI_433520"]
     assert np.isnan(truth.loc[p.index[90]])              # never score a truth built from a partial basket
+
+
+def test_config_prices_never_value_a_eur_per_tonne_series(toy):
+    """A EUR/t series is valued at its own price at the origin. The config price is dated at the base month: using it
+    at a past origin is a look-ahead that no perturbation of the panel can reveal (it happened with L01_FR)."""
+    p, a = toy
+    b = copy.deepcopy(a)
+    for k in ("copper", "carbon_steel", "stainless_steel"):
+        b["eur_per_kg_at_base"][k]["value"] *= 3.0
+    for o in (p.index[60], p.index[90]):
+        pd.testing.assert_frame_equal(tg.make_bom_deriver(p, a)(p, p.loc[:o], o), tg.make_bom_deriver(p, b)(p, p.loc[:o], o))
+
+
+def test_every_licensed_price_is_a_direct_price():
+    from src.licensed import LIC_COLUMNS
+    assert set(LIC_COLUMNS) <= tg.DIRECT_EUR_T

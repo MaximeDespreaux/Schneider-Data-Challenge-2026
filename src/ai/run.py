@@ -16,6 +16,7 @@ import pandas as pd
 
 from src import backtest as bt
 from src import features as fe
+from src.testbench.protocol import NOT_PUBLISHABLE_PREFIXES, assert_publishable_ids
 
 from . import backtest as ab
 from . import baselines as nb
@@ -150,8 +151,15 @@ def live_stage(T, X, res: pd.DataFrame, choice: pd.DataFrame) -> pd.DataFrame:
     return live
 
 
-def submission_csv(live: pd.DataFrame, team_id: str = "team_xhec") -> pd.DataFrame:
+def publishable(live: pd.DataFrame) -> pd.DataFrame:
+    """Rows that may go in the CSV: licensed prices (CRU / MEPS) are forecast internally, never published."""
+    return live[~live.series.str.startswith(NOT_PUBLISHABLE_PREFIXES)]
+
+
+def submission_csv(live: pd.DataFrame, team_id: str = C.TEAM_ID) -> pd.DataFrame:
     """Schneider's CSV format (deck slide 17). ``ai_tools`` lists the pretrained model behind each row."""
+    assert_publishable_ids(live.series.unique())
+
     def ai_tools(m: str) -> str:
         used = [k for k in C.MODELS if k in m] + (["chronos-2"] if m.startswith("chronos2") else [])
         return "; ".join(dict.fromkeys(used)) or "none"
@@ -183,9 +191,9 @@ def main() -> None:
         df.to_csv(C.OUT / f"ai_scores_{name}.csv")
     cut = pd.Timestamp(C.LIVE_ORIGIN)  # everything after the official origin is dropped for the live forecast...
     live = live_stage(T.loc[:cut], X.loc[:cut], known_at(res, cut), choice)
-    live.to_parquet(C.OUT / "ai_live_forecast.parquet")
-    sub = submission_csv(live)
-    sub.to_csv(C.OUT / "team_xhec_forecast_ai.csv", index=False)
+    live.to_parquet(C.OUT / "ai_live_forecast.parquet")  # internal: every series, licensed ones included
+    sub = submission_csv(publishable(live))
+    sub.to_csv(C.OUT / f"{C.TEAM_ID}_forecast_ai.csv", index=False)
     C.licence_table().to_csv(C.OUT / "ai_licences.csv", index=False)
     fp = footprint(runtime)
     fp.to_csv(C.OUT / "ai_compute_footprint.csv")

@@ -73,7 +73,7 @@ suppliers:
   # companies: NOT here (NDA). They are read from config/suppliers.local.yaml (git-ignored);
   # copy config/suppliers.example.yaml to create it.
 
-olivier_gaps:
+clarifications:
   lme_reference:
     metals: [copper, aluminium]
     horizons: [3, 6, 9]

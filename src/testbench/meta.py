@@ -1,8 +1,8 @@
 """Strategy A: walk-forward model selection and combination (meta pass over the base forecasts).
 
 At origin t, for each (series, horizon), only base rows already REALISED at t are used:
-target_month <= t (submission mode) or target_month <= t - lag(series) (realtime mode, lags from
-config/availability.yaml). Candidates are scored on the last ``window`` origin-months of those rows (pinball loss
+target_month <= t - lag(series), with the publication lags of config/availability.yaml in realtime mode and the live
+gap of each masked series in submission mode (0 for Schneider's CSV targets, known up to the origin by convention). Candidates are scored on the last ``window`` origin-months of those rows (pinball loss
 averaged over P10/P50/P90, on the rows all eligible candidates share). Then:
 - wf_best   : the candidate with the lowest trailing loss;
 - wf_blend  : quantile-wise geometric average, weights proportional to loss ** -power (the submitted model);
@@ -37,11 +37,11 @@ class MetaConfig:
 
 def realised(base: pd.DataFrame, t, mode: str, lags: dict[str, int] | None = None) -> pd.Series:
     t = pd.Timestamp(t)
-    if mode == "submission":
-        return base["target_month"] <= t
-    if mode != "realtime":
+    if mode not in ("submission", "realtime"):
         raise ValueError(mode)
-    if lags is None:
+    if mode == "submission":
+        lags = {s: (lags or {}).get(s, 0) for s in base["series"].unique()}
+    elif lags is None:
         from .availability import realtime_lags
         lags = realtime_lags()
     missing = sorted(set(base["series"]) - set(lags))
@@ -71,7 +71,7 @@ def meta_pass(base: pd.DataFrame, cfg: MetaConfig, mode: str, lags: dict[str, in
     out, diag = [], []
     for (s, h), g in base.groupby(["series", "horizon"]):
         sc = scored[(scored.series == s) & (scored.horizon == h)]
-        lag = 0 if mode == "submission" else int(lags[s]) if s in lags else None
+        lag = int((lags or {}).get(s, 0)) if mode == "submission" else int(lags[s]) if s in lags else None
         if lag is None:
             raise KeyError(f"no realtime lag for series {[s]}")
         for t in origins:

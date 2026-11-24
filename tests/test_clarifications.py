@@ -1,11 +1,11 @@
-"""Tests of src/business/olivier_gaps/, on SYNTHETIC data only (they run with an empty data/ folder, as in CI)."""
+"""Tests of src/business/clarifications/, on SYNTHETIC data only (they run with an empty data/ folder, as in CI)."""
 
 import numpy as np
 import openpyxl
 import pandas as pd
 import pytest
 
-from src.business.olivier_gaps import lme_reference, procurement_summary, sensitivity
+from src.business.clarifications import lme_reference, procurement_summary, sensitivity
 
 
 # ------------------------------------------------------------------------------------- 1. LME loader
@@ -115,7 +115,7 @@ def test_brass_copper_share_raises_copper_exposure():
 
 # ------------------------------------------------------------------------- 5. procurement summary
 def test_procurement_summary_from_fake_inputs(tmp_path, monkeypatch):
-    bus, og = tmp_path / "business", tmp_path / "business" / "olivier_gaps"
+    bus, og = tmp_path / "business", tmp_path / "business" / "clarifications"
     og.mkdir(parents=True)
     pd.DataFrame([{"product": p, "item": "copper", "kind": "material", "shock_pct": s, "delta_eur": 5.0 * s}
                   for p in ["RM6", "AirSeT"] for s in [10, 30]]).to_csv(bus / "shock_table.csv", index=False)

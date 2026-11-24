@@ -1,13 +1,13 @@
 """Gap 3 — procurement levers: one table of numbers that already exist, for the procurement slide. No new modelling.
 
-    uv run python -m src.business.olivier_gaps.procurement_summary
+    uv run python -m src.business.clarifications.procurement_summary
 
 Reads (re-running the producing module's ``run()`` if a file is missing):
 - shock_table.csv, convergence_summary.csv (copper exposure to hedge);
-- olivier_gaps/lme_reference_summary.csv, lme_spread_stats.csv (hedge reference, back-to-back indexation);
+- clarifications/lme_reference_summary.csv, lme_spread_stats.csv (hedge reference, back-to-back indexation);
 - lag_table.csv (negotiation timing);
 - supplier_estimates.csv (supplier engagement order).
-Output (gitignored): data/outputs/business/olivier_gaps/procurement_levers_summary.csv
+Output (gitignored): data/outputs/business/clarifications/procurement_levers_summary.csv
 (columns lever, metric, product_or_pair, value, unit, source_file).
 """
 
@@ -36,9 +36,9 @@ def sources() -> dict:
             "convergence_summary.csv": (BUS_OUT / "convergence_summary.csv", "convergence"),
             "lag_table.csv": (BUS_OUT / "lag_table.csv", "lags"),
             "supplier_estimates.csv": (BUS_OUT / "supplier_estimates.csv", "suppliers"),
-            "olivier_gaps/lme_reference_summary.csv": (OG_OUT / "lme_reference_summary.csv",
-                                                       "olivier_gaps.lme_reference"),
-            "olivier_gaps/lme_spread_stats.csv": (OG_OUT / "lme_spread_stats.csv", "olivier_gaps.lme_reference")}
+            "clarifications/lme_reference_summary.csv": (OG_OUT / "lme_reference_summary.csv",
+                                                       "clarifications.lme_reference"),
+            "clarifications/lme_spread_stats.csv": (OG_OUT / "lme_spread_stats.csv", "clarifications.lme_reference")}
 
 
 def ensure_inputs(cfg: dict) -> dict:
@@ -73,18 +73,18 @@ def build(data: dict, products: list) -> pd.DataFrame:
             add("copper exposure to hedge", "copper value share at 2026-09", p,
                 100 * float(conv.at[p, "copper_share_2026_09"]), "%", "convergence_summary.csv")
 
-    s = data["olivier_gaps/lme_reference_summary.csv"]
+    s = data["clarifications/lme_reference_summary.csv"]
     s = s[(s["metal"] == "copper") & (s["period"] == "all")].set_index(["horizon", "mechanism"])["p90_err_pct"]
-    src = "olivier_gaps/lme_reference_summary.csv"
+    src = "clarifications/lme_reference_summary.csv"
     for h in HORIZONS:
         for m, label in [("B_fixed_3m", "P90 margin loss, price locked at LME 3-month (B_fixed_3m)"),
                          ("A_fixed_cash", "P90 margin loss, price fixed at LME cash (A_fixed_cash)")]:
             if (h, m) in s.index:
                 add("hedge reference", label, f"copper h={h}", float(s[(h, m)]), "% of metal cost", src)
-    sp = data["olivier_gaps/lme_spread_stats.csv"].set_index("metal")
+    sp = data["clarifications/lme_spread_stats.csv"].set_index("metal")
     if "copper" in sp.index:
         add("hedge reference", "mean (3m - cash) / cash spread", "copper", float(sp.at["copper", "mean_spread_pct"]),
-            "%", "olivier_gaps/lme_spread_stats.csv")
+            "%", "clarifications/lme_spread_stats.csv")
     for h in HORIZONS:
         if (h, "E_fixed_3m_plus_trigger") in s.index:
             add("back-to-back indexation", "P90 margin loss left with Schneider, 3m base + trigger clause "
