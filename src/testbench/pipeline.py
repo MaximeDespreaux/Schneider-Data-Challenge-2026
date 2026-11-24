@@ -86,7 +86,7 @@ def run_mode(panel, der, tg, models, mode, origins, out, live_origin, scorer) ->
     lags = lags_for(mode, panel, tg, live_origin)
     fc = run_backtest(panel, tg, models, origins=origins, mode=mode, derive=der, lags=lags, verbose=True)
     meta_cfg = MetaConfig(shortlist=SHORTLIST)
-    meta, diag = meta_pass(fc, meta_cfg, mode, lags=lags if mode == "realtime" else None)
+    meta, diag = meta_pass(fc, meta_cfg, mode, lags=lags)
     allfc = pd.concat([fc, meta], ignore_index=True)
     out.mkdir(parents=True, exist_ok=True)
     allfc.to_parquet(out / "forecasts.parquet")

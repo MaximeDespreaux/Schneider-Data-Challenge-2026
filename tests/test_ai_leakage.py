@@ -23,7 +23,7 @@ def test_published_by_matches_the_release_calendar():
     ppi_for_steel = fe.published_by(months, pd.Series(["S09"] * 4), o, "CRU_CR_DE")
     assert ppi_for_steel.tolist() == [True, False, False, False]          # PPI comes out 2 months after the CRU price
     steel_for_ppi = fe.published_by(months, pd.Series(["CRU_CR_DE"] * 4), o, "S09")
-    assert steel_for_ppi.all()                                            # the PPI forecast is made 2 months later
+    assert steel_for_ppi.tolist() == [True, True, True, False]            # out by then, but never after the origin
 
 
 def test_bank_of_japan_series_are_not_known_at_month_end():
@@ -190,3 +190,52 @@ def test_answer_from_another_model_is_refused():
 def test_unverified_release_date_gives_no_clean_window():
     assert C.llm_released("claude-opus-5-5") is None and C.llm_released("unknown") is None
     assert C.llm_released("qwen3:14b") == pd.Timestamp("2025-04-29")
+
+
+# ------------------------------------------------------------------------------------------ nothing after the origin
+@pytest.mark.parametrize("target", ["D01", "S09"])
+def test_pooled_lightgbm_of_a_lagged_series_ignores_everything_after_its_origin(target):
+    """A lagged series is forecast when published, i.e. after its origin month: steel outcomes dated in between must
+    still not be used (the live forecast is cut at the origin)."""
+    rng = np.random.default_rng(6)
+    months = pd.date_range("2012-01-01", "2021-06-01", freq="MS")
+    o, h = months[-1], 3
+    idx = pd.MultiIndex.from_product([months, ["CRU_CR_DE", target]], names=["month", "series"])
+    feat = pd.DataFrame({"family": ["steel_market", "other"] * len(months), "y_level": 100.0,
+                         "y": rng.normal(0, 0.05, len(idx)), "own_dlog_l0": rng.normal(size=len(idx))}, index=idx)
+    feat2 = feat.copy()
+    feat2.loc[feat2.index.get_level_values("month") > o - pd.DateOffset(months=h), "y"] += 5.0
+    np.testing.assert_allclose(mo.lgbm_predict(feat, o, h), mo.lgbm_predict(feat2, o, h))
+
+
+@pytest.mark.parametrize("band", ["conformal", "cqr"])
+def test_pooled_bands_of_a_lagged_series_ignore_everything_after_its_origin(band):
+    rng = np.random.default_rng(7)
+    o = pd.Timestamp("2021-06-01")
+    cru = _rows("CRU_CR_DE", pd.date_range("2019-01-01", "2021-05-01", freq="MS"), rng.normal(0, 0.05, 29))
+    ppi = _rows("S09", [o], [0.0])
+    cru2 = cru.copy()
+    after = cru2.target_month > o
+    assert after.any()
+    cru2.loc[after, "actual"] += 5.0
+    out = []
+    for c in (cru, cru2):
+        res = pd.concat([c, ppi], ignore_index=True)
+        r = bt.add_conformal(res, "m") if band == "conformal" else ab.add_cqr(res, "m").query("model == 'm+cqr'")
+        out.append(r[r.series == "S09"][["q10", "q90"]].to_numpy())
+    assert np.isfinite(out[0]).all()
+    np.testing.assert_allclose(out[0], out[1])
+
+
+# ------------------------------------------------------------------------------------------ submission file
+def test_ai_csv_never_carries_a_licensed_series():
+    from src.external.run_champion import TEAM_ID
+    from src.testbench.submission import validate_submission
+    live = pd.DataFrame([dict(series=s, origin=pd.Timestamp("2026-09-01"), h=h, model="naive",
+                              target_month=pd.Timestamp("2026-09-01") + pd.DateOffset(months=h), p10=1.0, p50=2.0, p90=3.0)
+                         for s in fe.TARGETS for h in C.HORIZONS])
+    sub = ai_run.submission_csv(ai_run.publishable(live))
+    assert set(sub.target_id) == {"D01", "D02", "S03", "S04", "S09", "S10", "S11"}
+    assert set(sub.team_id) == {TEAM_ID} and validate_submission(sub) == []
+    with pytest.raises(ValueError, match="not publishable"):
+        ai_run.submission_csv(live)

@@ -1,4 +1,8 @@
-"""Une commande pour : criblage des signaux -> vérification 2024-26 du champion -> CSV de soumission.
+"""Une commande pour : criblage des signaux (exploration) -> vérification 2024-26 du champion -> CSV de soumission.
+
+Le champion noté et soumis est ``ChampionWF`` : criblage refait à chaque origine sur les seules cibles réalisées.
+Le criblage global (``screen``) n'est écrit que pour l'exploration. Les séries absentes au bord du live (origine
+2026-09) sont masquées du même nombre de mois à chaque origine, comme dans ``testbench.pipeline``.
 
     uv run python -m src.external.run_champion                    # v1 (défaut, inchangé)
     uv run python -m src.external.run_champion --candidates v2    # option v2 : + séries énergie fournies (CROSS_V2)
@@ -17,14 +21,15 @@ import pandas as pd
 
 from src import data as d
 from src.external.features import CROSS_V2
-from src.external.models import Champion
-from src.external.screen import screen, selected
+from src.external.models import ChampionWF
+from src.external.screen import screen
 from src.external.signals import build_panel
 from src.testbench import metrics
 from src.testbench.backtest import compute_footprint, run_backtest
 from src.testbench.driver_models import DriverRidge
 from src.testbench.ml_models import LGBMQuantile
 from src.testbench.models import Naive, NaiveVolScaled
+from src.testbench.pipeline import lags_for
 from src.testbench.run import bom_deriver, default_targets
 from src.testbench.submission import from_forecasts, validate_submission
 
@@ -68,13 +73,13 @@ def main(team_id: str = TEAM_ID, candidates: str = "v1"):
     res = screen(panel, cross=opt["cross"])
     t_screen = time.perf_counter() - t0
     res.to_csv(out / f"signal_screen{sfx}.csv", index=False)
-    sel = selected(res)
-    champ = Champion(selected=sel, name=opt["model"], cross=opt["cross"])
+    champ = ChampionWF(name=opt["model"], cross=opt["cross"])
+    lags = lags_for("submission", panel, targets, f"{ORIGIN}-01")  # bord irrégulier du live, appliqué à chaque origine
 
-    print("2/3 vérification sur 2024-26 (jamais utilisée pour choisir)")
+    print("2/3 vérification sur 2024-26 (sert aussi aux règles v1/v2 et champion/LightGBM : ce n'est pas un test vierge)")
     ml = LGBMQuantile()
     fc = run_backtest(panel, targets, [Naive(), NaiveVolScaled(), champ, DriverRidge(), ml],
-                      origins=pd.date_range("2024-01-01", f"{ORIGIN}-01", freq="MS"), derive=derive, verbose=False)
+                      origins=pd.date_range("2024-01-01", f"{ORIGIN}-01", freq="MS"), derive=derive, lags=lags, verbose=False)
     runtime_holdout = dict(fc.attrs["runtime_s"])
     scored = metrics.score_rows(fc)
     tab = metrics.summarize(scored)
@@ -103,14 +108,14 @@ def main(team_id: str = TEAM_ID, candidates: str = "v1"):
 
     print("3/3 CSV de soumission")
     cat, _ = d.load_catalogs()
-    fc0 = run_backtest(panel, targets, [submitted], origins=[f"{ORIGIN}-01"], derive=derive, verbose=False)
+    fc0 = run_backtest(panel, targets, [submitted], origins=[f"{ORIGIN}-01"], derive=derive, lags=lags, verbose=False)
     runtime_sub = fc0.attrs["runtime_s"][submitted.name]
     # le CSV ne contient que les 14 séries d'origine de Schneider + les 2 indices BOM
     region = {s: ("EU" if s in ["S07", "S08", "S09", "S10", "S11"] else "WW") for s in d.SCHNEIDER_RM_TARGETS}
     unit = {s: cat.loc[s, "unit"] for s in d.SCHNEIDER_RM_TARGETS}
     ai = "claude-code; public data: FRED/IMF/BLS, Eurostat, NY Fed GSCPI"
     name = ("lgbm_quantile (adopted by pre-registered rule)" if submitted is ml
-            else f"{opt['model']}_signals_ridge+naive_vol")
+            else f"{opt['model']}_wf_signals_ridge+naive_vol")
     if submitted is ml:
         ai += "; lightgbm"
     a = from_forecasts(fc0[fc0.series.isin(d.SCHNEIDER_RM_TARGETS)], ORIGIN, team_id, name, ai, region, unit)

@@ -10,7 +10,6 @@ from scipy import stats
 from . import features as fe
 from . import models as mo
 
-MAX_LAG = 2  # largest publication lag among the targets (months), used as a cheap pre-filter
 SHOCK = (pd.Timestamp("2021-01-01"), pd.Timestamp("2022-12-01"))
 
 
@@ -102,7 +101,7 @@ def add_conformal(res: pd.DataFrame, model: str, alpha: float = 0.2, min_resid: 
     r["resid"] = r.actual - r.pred
     lo, hi = [], []
     for _, row in r.iterrows():
-        past = r[(r.h == row.h) & (r.target_month <= row.origin + pd.DateOffset(months=MAX_LAG))]
+        past = r[(r.h == row.h) & (r.target_month <= row.origin)]
         past = past[fe.published_by(past.target_month, past.series, row.origin, row.series)]
         own = past[past.series == row.series].resid
         pool = own if len(own) >= min_resid else past.resid
