@@ -44,6 +44,19 @@ MODELS: dict[str, dict] = {
         "source": "https://huggingface.co/amazon/chronos-2",
     },
 }
+# LLMs used by phases 2-4 (separate from MODELS, which the forecasting backtest loops over).
+LLMS: dict[str, dict] = {
+    "qwen3:14b": {
+        "kind": "local LLM via Ollama (no data leaves the machine)", "hf_id": "Qwen/Qwen3-14B (Q4_K_M GGUF)",
+        "revision": "ollama digest bdbd181c33f2", "licence": "Apache-2.0", "released": "2025-04-29",
+        "source": "https://huggingface.co/Qwen/Qwen3-14B",
+    },
+    "claude-opus-5-5": {
+        "kind": "Claude API (public data only, through src/ai/guard.py)", "hf_id": "-", "revision": "claude-opus-5-5",
+        "licence": "Anthropic commercial terms", "released": "2026-01-01", "source": "https://docs.anthropic.com",
+    },
+}
+
 EXCLUDED = {
     "moirai": "Salesforce Moirai: CC-BY-NC-4.0 (non-commercial) - incompatible with a forecast Schneider may use.",
 }
@@ -55,6 +68,6 @@ COVARIATES_FROM_DRIVERS = True
 
 def licence_table() -> pd.DataFrame:
     rows = [{"tool": k, **{c: v[c] for c in ("kind", "hf_id", "revision", "licence", "released", "source")}}
-            for k, v in MODELS.items()]
+            for k, v in {**MODELS, **LLMS}.items()]
     rows += [{"tool": k, "kind": "excluded", "licence": v} for k, v in EXCLUDED.items()]
     return pd.DataFrame(rows)

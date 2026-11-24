@@ -25,9 +25,9 @@ What we expect: market prices are close to a random walk, so the AI models shoul
 | # | Component | Status |
 |---|---|---|
 | 1 | **Pretrained time-series models**: Chronos-Bolt small/base, and Chronos-2 with the economic drivers as inputs. Zero-shot, local, Apache-2.0, versions pinned. | ✅ done |
-| 2 | **Agent-proposed features**: an LLM proposes features in a small, restricted formula language, from public metadata only. The local screening decides which to keep (notebook 03's procedure, on pre-2024 data). | ⏳ blocked: API key |
-| 3 | **LLM news / regime signal**: public dated headlines (GDELT) scored by an LLM for supply/demand tension, per material and month. Must beat the GDELT-tone baseline. | ⏳ blocked: API key |
-| 4 | **LLM analyst forecast**: P10/P50/P90 from public series only. Usable only for the live forecast plus a check on months after the LLM's training cutoff, and flagged as such. | ⏳ blocked: API key |
+| 2 | **Agent-proposed features**: an LLM proposes features in a small, restricted formula language, from public metadata only. The local screening decides which to keep (notebook 03's procedure, on pre-2024 data). Runs on the local **Qwen3-14B** (Ollama) by default, or Claude. | ✅ done: negative result |
+| 3 | **LLM news / regime signal**: public dated headlines (GDELT) scored by an LLM for supply/demand tension, per material and month. Must beat the GDELT-tone baseline. | 🔜 (local Qwen or Claude) |
+| 4 | **LLM analyst forecast**: P10/P50/P90 from public series only. Usable only for the live forecast plus a check on months after the LLM's training cutoff, and flagged as such. | 🔜 (local Qwen or Claude) |
 | 5 | **Packaging**: documentation, public results page, `make ai`, CI, merge with the team. | 🔜 next |
 
 ## 4. Phase 1 results (rolling backtest, 12 prices, h = 3/6/9)
@@ -59,7 +59,9 @@ Clean windows (target months after each model's release, vs naive / vs naive_vol
 ```bash
 uv sync --group ai                                             # torch + chronos-forecasting
 uv run --group ai python -m src.ai.run                         # backtest + live forecast (~15 s; needs the NDA data)
-uv run --group ai --with pytest python -m pytest -q tests/test_ai_foundation.py   # synthetic-data tests
+uv run --group ai --with pytest python -m pytest -q tests/       # tests (guard tests skip without the NDA data)
+cp .env.example .env    # then fill ANTHROPIC_API_KEY (phases 2-4); .env is git-ignored
+uv run --group ai python -m src.ai.llm                           # connectivity check (a few tokens)
 ```
 
 Outputs (private, `data/outputs/ai/`): `ai_backtest.parquet`, `ai_scores_*.csv`, `ai_selection.csv`, `ai_live_forecast.parquet`, `team_xhec_forecast_ai.csv`, `ai_licences.csv`, `ai_compute_footprint.csv`.
@@ -73,6 +75,12 @@ Outputs (private, `data/outputs/ai/`): `ai_backtest.parquet`, `ai_scores_*.csv`,
 | `foundation.py` | Inputs cut at the forecast date, batched local inference, adapter to the team test bench |
 | `backtest.py` | AI rows in the `src/backtest.py` format; CQR, averaging, hybrid / quantile-average combinations, comparison, pre-registered selection |
 | `run.py` | One command: backtest → selection → live forecast → CSV, licences, compute |
+| `guard.py` | NDA gate: public-series allow-list + deny-list text check (shared with `public/scan_leaks.py`) |
+| `feature_dsl.py` | Formula language for LLM-proposed features: parser, leak-free compiler, notebook-03 screen |
+| `agent_features.py` | Phase 2 loop: Claude proposes formulas, the local screen decides, feedback is coarse buckets only |
+| `llm.py` | Only LLM entry point (local Qwen via Ollama, or Claude): gate → cache → budget cap → call → JSONL log |
+| `agent_eval.py` | dynreg with vs without the agent's accepted features, scored on 2024–26 |
+| `../../tests/test_ai_guard.py` | The gate refuses licensed series, client / source words, private numbers and terms; `ask` refuses before any network call |
 | `../../tests/test_ai_foundation.py` | No look-ahead (AI inputs and naive_vol), publication lags, CQR, selection (synthetic data) |
 
 ## 7. To-do list
@@ -99,13 +107,23 @@ Outputs (private, `data/outputs/ai/`): `ai_backtest.parquet`, `ai_scores_*.csv`,
 - [ ] Optional: TimesFM (check licence and release date first)
 - [ ] Add the RM6 / AirSeT BOM cost indices as targets
 
+### Shared LLM plumbing ✅
+- [x] `.env` (git-ignored) + `.env.example` for `ANTHROPIC_API_KEY`, `AI_MODEL` (default `claude-opus-5-5`), `AI_BUDGET_USD`
+- [x] `guard.py`: NDA gate (public-series allow-list + deny-list text check) + 9 tests
+- [x] `llm.py`: response cache, budget cap, JSONL prompt/response log, server-side refusal fallback, JSON-schema outputs
+- [x] Local provider: `qwen3:14b` through Ollama (`AI_PROVIDER=ollama`, default; same NDA gate, $0, ~90 s per call with reasoning on); registered in the licence table (Apache-2.0)
+- [x] `public/scan_leaks.py` refactored: `compile_patterns()` / `find_leaks()` shared by the file scan and the gate
+- [x] Connectivity check with Qwen (local). Claude API key set, account still needs credits
+
 ### Phase 2: agent-proposed features (needs `ANTHROPIC_API_KEY`)
-- [ ] `guard.py`: NDA gate + prompt/response log + tests (refuses licensed series and deny-list terms)
-- [ ] Formula-language spec (`dlog`, `ratio`, `spread`, `dev_ma`, `zscore`, `lag`) + compiler with publication lags
-- [ ] Agent loop: public metadata in, pass/fail and a |ρ| bucket back, 2–3 rounds, cost cap
-- [ ] Screening reused from notebook 03 on pre-2024 targets only
-- [ ] Feed accepted features to dynreg and to Chronos-2 as drivers
-- [ ] Evaluate on 2024–26 against the same models without the new features
+- [x] Formula language (`dlog`, `lag`, `ratio`, `spread`, `dev_ma`, `zscore`, `vol`, `TARGET`) + safe `ast` compiler with publication lags (`feature_dsl.py`, 21 tests incl. scramble-the-future)
+- [x] Screening from notebook 03 on pre-2024 targets only (n ≥ 60, |ρ| ≥ 0.10, sign-stable in ≥ 2 regimes, not a duplicate of an existing feature)
+- [x] Agent loop (`agent_features.py`): public metadata in, pass/fail + signal bucket back, 3 rounds × 8 formulas per family, acceptance = passes at ≥ 2 of 3 horizons; tested with a fake LLM (prompts pass the gate, licensed series and code injection refused, no numbers in the feedback)
+- [x] Full run with Qwen (15 calls, ~28 min, $0): 93 formulas proposed, 0 rejected by the parser after the language fix, 107 (formula, target) pairs accepted (47 distinct formulas)
+- [x] Evaluation script `agent_eval.py`: dynreg with vs without the accepted features, 2024–26 only
+- [x] Evaluated on 2024–26: **dynreg gets worse with the agent's features** (error vs naive 1.09 → 1.18, range quality 1.09 → 1.15, coverage 0.95 → 0.87). Small central-forecast gains on the EU steel PPIs (S09 0.88 → 0.80, S10 0.74 → 0.68), copper and aluminium, but with worse bands. Cause: the one-feature-at-a-time screen let up to 19 extra drivers in per target for ~100 training months (data mining). Not fed to Chronos-2.
+- [ ] Possible follow-up, to be pre-registered before looking at 2024–26 again: cap at the 2 best features per target by pre-2024 rank, and require each to improve a pre-2024 rolling backtest, not just the screen
+- [ ] Optional: same loop with Claude once credits are added, to compare the two LLMs
 
 ### Phase 3: LLM news / regime signal (needs `ANTHROPIC_API_KEY`)
 - [ ] GDELT headline fetch per material and month (2016 →)
@@ -131,6 +149,6 @@ Outputs (private, `data/outputs/ai/`): `ai_backtest.parquet`, `ai_scores_*.csv`,
 - [ ] Commit and open a PR from `ai-track` (only when agreed)
 
 ### Open questions
-- [ ] Claude API key and budget cap for phases 2–4
+- [x] Claude API key slot and budget cap (`.env`); key still to be filled
 - [ ] Team agreement on merging into `champion/v2`
 - [ ] Which CSV the AI track submits: a separate file, or rows merged into the champion CSV
