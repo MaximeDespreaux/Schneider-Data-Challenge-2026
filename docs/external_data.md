@@ -16,8 +16,8 @@ uv run python -m src.external.screen           # criblage des signaux (cibles < 
 | Source | Séries | Depuis | Usage | Licence |
 |---|---|---|---|---|
 | FRED / FMI | cuivre, alu, nickel, zinc, minerai, Brent, gaz Europe, indices métaux et toutes matières | 1992 | historique long des cibles + signaux | libre avec citation |
-| FRED / BLS | PPI US : toutes matières, matières brutes, biens intermédiaires, fer et acier, ferraille, non-ferreux, résines, fret maritime, produits sidérurgiques | 1913–1988 | historique long (S12, S13) + signaux « chaîne des prix » | domaine public (BLS) |
-| FRED / Fed | production industrielle, métaux primaires, taux d'utilisation, mises en chantier, commandes, dollar large, taux 10 ans, inflation anticipée | 1919–2006 | signaux de demande / monnaie | domaine public |
+| FRED / BLS | PPI US : toutes matières, matières brutes, biens intermédiaires, fer et acier, ferraille, non-ferreux, résines, fret maritime, produits sidérurgiques | 1913–1988 | historique long (S12, S13) + signaux « chaîne des prix » | domaine public (BLS) <!-- nda-ok: year --> |
+| FRED / Fed | production industrielle, métaux primaires, taux d'utilisation, mises en chantier, commandes, dollar large, taux 10 ans, inflation anticipée | 1919–2006 | signaux de demande / monnaie | domaine public <!-- nda-ok: year --> |
 | FRED / CBOE, EPU | VIX, OVX, incertitude politique mondiale | 1990–2007 | régime de nervosité | conditions des fournisseurs (citation) |
 | NY Fed | Global Supply Chain Pressure Index | 1998 | tension des chaînes d'appro | libre avec citation |
 | Eurostat `sts_inppd_m` | mêmes indices que S07–S11 | 2000 | historique long | CC BY 4.0 |
@@ -54,7 +54,7 @@ La v2 est une **option** qui teste en plus les autres séries énergie fournies 
 - **Historique long** : `fetch_public` télécharge aussi charbon Australie, gaz US, GNL Japon et l'indice énergie
   (FMI via FRED), et les indices de prix Eurostat de l'énergie (NACE D35) pour l'Allemagne et la France.
   `signals.extend_history` prolonge ainsi E06, E07, E08, E22, E14, E15 dans le passé, et en dérive ED03 / ED04
-  (USD/MMBtu × 3,412 / USD par EUR) avant le début du panel. Les colonnes de la v1 ne changent pas.
+  (USD/MMBtu × 3,412 / USD par EUR) avant le début du panel. Les colonnes de la v1 ne changent pas. <!-- nda-ok: MMBtu to MWh factor -->
 - **Candidats** : `features.CROSS_V2` = CROSS + E08, E06, E07, ED03, ED04, E14, E15, E10, E12, ED05, E20, E21, ED06,
   E22. Même criblage (cibles < 2024, signe stable sur 2003-2012 et 2013-2023), même règle du modèle final.
 - `fetch_public` ne saute une source que si son fichier existe **et** contient toutes les séries configurées.

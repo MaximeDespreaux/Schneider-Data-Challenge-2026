@@ -39,17 +39,23 @@ data/raw/
 ├── Copia_de_Europe_Steel_INDEXES.xlsx             LICENSED MEPS/CRU steel workbook — never commit
 ├── competitor_teardown_rm6_class.xlsx             competitor teardowns (renamed from
 │                                                  benchmark-modules-fonctionnels-rm6-ne-iqi-...-sf6.xlsx; original name also works)
-├── suppliers/                                     PitchBook exports, one per company in config/business.yaml
+├── suppliers/                                     PitchBook exports, one per company in config/suppliers.local.yaml
 │   └── PitchBook_-_<Company>_Company_Financials_<timestamp>.xlsx   (keep the original PitchBook names)
 └── external/                                      OPTIONAL, created by `make fetch` (public data)
     ├── fred_monthly.csv
     ├── eurostat_ppi_long.csv
     └── gscpi.csv
 ```
-Supplier files are matched by the `file_keyword` of each company in `config/business.yaml` (punctuation and accents
-are ignored, so `REDACTED` matches `REDACTED`).
+Supplier files are matched by the `file_keyword` of each company in `config/suppliers.local.yaml` (punctuation and accents
+are ignored, so `Supplier_A_(City)` matches `Supplier_A_City`).
 
-## d. config/assumptions.yaml (local, gitignored)
+## d. config/suppliers.local.yaml and config/assumptions.yaml (local, gitignored)
+Supplier names and reference values are under NDA: get the filled `suppliers.local.yaml` privately from the team, or start
+from the template:
+```bash
+cp config/suppliers.example.yaml config/suppliers.local.yaml
+```
+Same idea for the assumptions:
 ```bash
 cp config/assumptions.example.yaml config/assumptions.yaml
 ```
