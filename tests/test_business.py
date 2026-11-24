@@ -261,6 +261,23 @@ def test_cache_invalidated_when_champion_newer(tmp_path):
     assert use is False and "available" in why
 
 
+def test_source_falls_back_to_champion_until_a_graded_run_exists(tmp_path, monkeypatch):
+    """prefer = champion_wf, no graded run yet -> champion holdout; once a graded run exists -> champion_wf."""
+    from src.business import forecasts as bf
+    o = pd.Timestamp("2026-09-01")
+    monkeypatch.setattr(bf, "GRADED", tmp_path / "graded")
+    monkeypatch.setattr(bf, "champion_path", lambda: tmp_path / "champion_holdout.parquet")
+    row = lambda m, s: {"model": m, "series": s, "origin": o, "horizon": 3}  # noqa: E731
+    assert bf.pick_source(o, {"A", "B"}, "champion_wf") == (None, None)            # nothing yet -> naive_vol
+    pd.DataFrame([row("champion", "A"), row("champion", "B")]).to_parquet(tmp_path / "champion_holdout.parquet")
+    assert bf.pick_source(o, {"A", "B"}, "champion_wf") == ("champion", tmp_path / "champion_holdout.parquet")
+    g = tmp_path / "graded" / "tag1" / "submission"
+    g.mkdir(parents=True)
+    pd.DataFrame([row("champion_wf", "A"), row("champion_wf", "B")]).to_parquet(g / "forecasts.parquet")
+    assert bf.pick_source(o, {"A", "B"}, "champion_wf") == ("champion_wf", g / "forecasts.parquet")
+    assert bf.source_chain("champion") == ["champion"]
+
+
 def test_epoxy_ingredient_labels_are_unique():
     from src.business.lags import ingredient_label
     labels = [ingredient_label(c) for c in ["EPX_BENZENE", "EPX_ACETONE", "EPX_ECH"]]

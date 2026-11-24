@@ -123,6 +123,22 @@ def holdout_selection(scored: pd.DataFrame, split: str = "2024-01-01", criterion
     return pd.DataFrame(rows).set_index(["series", "horizon"]).round(3)
 
 
+def ljung_box_table(scored: pd.DataFrame, models, lags: int = 1, min_n: int = 8) -> pd.DataFrame:
+    """Ljung-Box sur les erreurs du P50 (en log), par modèle × série × horizon, sur des origines NON chevauchantes
+    (une tous les h mois) : des erreurs à h mois qui se chevauchent sont autocorrélées par construction.
+    p < 0,05 = il reste de la structure dans les erreurs (le modèle pourrait encore être amélioré)."""
+    from .stats import ljung_box, non_overlapping
+    rows = []
+    for (m, s, h), g in scored[scored.model.isin(list(models))].groupby(["model", "series", "horizon"]):
+        g = non_overlapping(g.sort_values("origin"), int(h))
+        e = g["err"].to_numpy()
+        if len(e) < min_n or np.allclose(e, e[0]):
+            continue
+        q, p = ljung_box(e, lags)
+        rows.append({"model": m, "series": s, "horizon": h, "n": len(e), "lb_stat": q, "p_value": p})
+    return pd.DataFrame(rows, columns=["model", "series", "horizon", "n", "lb_stat", "p_value"])
+
+
 def overview(table: pd.DataFrame) -> pd.DataFrame:
     """Vue d'ensemble par modèle × horizon à partir d'une table summarize(by=model, series, horizon)."""
     t = table.reset_index()
