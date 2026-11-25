@@ -100,13 +100,13 @@ make all
 | `make champion-v2` | same with the extended energy candidates, files suffixed `_v2` | same folders | ~20 s |
 | `make compare` | v1 vs v2 with the pre-registered rule; status of every provided series | `data/outputs/checks/` | a few seconds |
 | `make business` | all business modules, figures, `REPORT.md`, compute footprint | `data/outputs/business/` | ~5 s |
-| `make submit` | the submission CSV, read from the graded run of tag `backtest-freeze-v3` (the only command that writes it) | `data/outputs/backtest/graded/<tag>/` | ~1 min (panel build) |
+| `make submit` | the submission CSV, read from the graded run of tag `backtest-freeze-v4` (the only command that writes it) | `data/outputs/backtest/graded/<tag>/` | ~1 min (panel build) |
 | `make backtest` | full backtest of the baseline models | `data/outputs/testbench/<mode>/` | a few minutes (not part of `make all`) |
 
 ## f. Outputs map
 | Result | File |
 |---|---|
-| Submission CSV (champion_wf2, graded run) | `data/outputs/backtest/graded/backtest-freeze-v3/team_01_forecast_202609.csv` |
+| Submission CSV (champion_wf2, graded run) | `data/outputs/backtest/graded/backtest-freeze-v4/team_01_forecast_202609.csv` |
 | Backtest scores (baselines) | `data/outputs/testbench/<mode>/scores.csv`, `overview.csv`, `holdout_selection.csv` |
 | Champion holdout scores | `data/outputs/external/champion_holdout_scores.csv` (v2: `..._v2.csv`); forecasts in `champion_holdout.parquet` |
 | Signal screening | `data/outputs/external/signal_screen.csv` (v2: `signal_screen_v2.csv`) |
