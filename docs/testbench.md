@@ -23,7 +23,7 @@ uv run python -m src.business.run_margin_replay      # Goal A : quelle politique
   `wf_best`, `wf_blend`, `wf_median`, calculés et rapportés seulement. Le modèle soumis est `candidates.SUBMITTED` =
   `champion_wf2` (walk-forward champion, signaux étendus), choisi sur la fenêtre dev avant le run noté (amendement 2 de
   `docs/backtest/preregistration.md`). Plus de choix sur 2024-26 (déjà regardé).
-- **Run noté et CSV** : `make graded` (une seule fois, commit taggé `backtest-freeze-v3`, période 2022-01..2026-09) puis
+- **Run noté et CSV** : `make graded` (une seule fois par tag, période 2022-01..2026-09 ; `backtest-freeze-v3` = premier regard, `backtest-freeze-v4` = second regard déclaré après deux corrections, résultat principal) puis
   `make submit`, seule commande qui écrit le CSV de soumission (lit le run noté du tag).
 - **Statistiques** (`stats.py`) : DM ordonné (HAC + HLN), Clark-West, DM groupé par famille + Holm, IC bootstrap
   par blocs, MDE par placebos, Kupiec / Christoffersen / Ljung-Box sur origines non chevauchantes.
