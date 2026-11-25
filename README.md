@@ -32,29 +32,41 @@ data (challenge panel + licensed steel + epoxy + public data)  →  causal panel
 | Hardened backtest: availability per series, canaries, DM / Clark-West / Holm / bootstrap / MDE, graded run | `src/testbench/pipeline.py`, `config/availability.yaml` | [preregistration.md](docs/backtest/preregistration.md) |
 | Business modules (Goal A and B) | `src/business/` | [business.md](docs/business.md) |
 
-## 3. Main results (relative to the naive forecast, 2024-26 check)
+## 3. Main results (graded out-of-sample run, 2022-01 to 2026-09, scored once)
 
-> **To re-run** (`make champion`). The table predates the fixes of 2026-11-24: the champion is now screened again at every
-> origin, inputs are masked by the live ragged edge, and RM6 steel is valued at its own price at each origin. 2024-26 is
-> not an untouched holdout: signals are chosen on targets before 2024, but this period also decides champion v1 vs v2 and
-> whether LightGBM replaces the champion, and it was looked at when setting the `naive_vol` bands
-> (see [preregistration.md](docs/backtest/preregistration.md), "Prior looks").
+The submitted model is `champion_wf2`. It was chosen on the development window (forecast targets 2010 to 2021) before
+any graded number was seen. The graded window was then scored once, from the tagged commit `backtest-freeze-v3`, after
+the leak canaries passed ([preregistration.md](docs/backtest/preregistration.md)). Walk-forward, with one forecast
+origin per month from 2022-01.
 
-| Model | Error of P50 (3 / 6 / 9 m) | Quantile loss (3 / 6 / 9 m) | P10–P90 coverage (target 0.80) |
-|---|---|---|---|
-| **Champion** (public signals + volatility-scaled bands) | ×0.97 / ×0.98 / ×1.00 | **×0.96 / ×0.96 / ×0.96** | 0.82–0.84 |
-| `naive_vol` (volatility-scaled bands) | ×1.00 | ×0.99 / ×0.97 / ×0.96 | 0.81–0.85 |
-| Driver ridge | ×1.02 / ×1.10 / ×1.18 | ×1.00 / ×1.07 / ×1.10 | 0.83 |
-| LightGBM quantile (ML benchmark) | ×1.15 / ×1.22 / ×1.28 | ×1.13 / ×1.21 / ×1.25 | 0.64–0.68 |
+Pinball loss of P10/P50/P90 relative to the naive forecast ("the price stays the same", with volatility-scaled bands).
+Below 1 is better. Brackets give the 95% block-bootstrap interval. Submission mode, which mirrors the live ragged edge.
+
+| Material group | 3 months | 6 months | 9 months | P10–P90 coverage (target 0.80) |
+|---|---|---|---|---|
+| EU and US steel indices | **0.79** [0.65–0.94] | 0.86 [0.70–1.00] | 0.85 [0.77–0.97] | 0.90–0.95 |
+| Plastics | **0.83** [0.76–0.92] | 0.90 [0.80–1.01] | 1.00 [0.85–1.09] | 0.83–0.87 |
+| BOM cost indices (RM6, AirSeT) | **0.89** [0.79–0.99] | 0.94 [0.83–1.03] | 0.93 [0.81–1.01] | 0.75–0.81 |
+| Licensed steel prices (EUR/t) | **0.87** [0.78–0.98] | 0.95 [0.88–1.08] | 0.99 [0.92–1.22] | 0.83–0.86 |
+| Epoxy and electronics | 0.89 [0.77–0.98] | **0.83** [0.76–0.90] | 0.81 [0.76–0.85] | 0.83–0.87 |
+| Metals (copper, aluminium, nickel, zinc, iron ore) | 1.03 [0.99–1.08] | 1.02 [0.98–1.08] | 1.03 [0.96–1.09] | 0.84–0.91 |
 
 What this means:
-- **Exchange-traded prices (copper, aluminium, nickel, zinc, iron ore) behave like a random walk**: no model beats
-  "the price stays the same" on the central forecast. Their risk is managed (hedging, indexation), not predicted.
-- **Slow EU price indices (steel, galvanised, aluminium, plastics) are partly predictable at 3 months**, from public
-  leading signals (US steel prices, upstream commodity prices, index-vs-market gap).
-- **Ranges matter more than point forecasts**: standard bands collapse in crises; volatility-scaled bands hold.
-- The ML benchmark overfits on ~100–400 months of history (also found in our first benchmark): kept as a reported row,
-  rejected by the pre-registered rule.
+- We see large and consistent gains at 3 months. Their 95% intervals exclude "no gain" on every group except metals.
+- Four years of data are too few to call this significant across every test. Our strict pre-registered rule (Holm
+  correction, both modes) is passed only by epoxy and electronics at 6 months. Every other cell is reported as "not
+  detectable", with its minimum detectable effect.
+- Exchange-traded metals behave like a random walk. No model beats "the price stays the same" there, so their risk is
+  managed with hedging and indexation, not predicted.
+- In realtime mode (official publication lags) the picture is the same, except the BOM indices at 3 months (0.99
+  [0.89–1.12]).
+- At 3 months `champion_wf2` has the lowest loss of all 14 models we ran (walk-forward blend, damped ETS, driver ridge,
+  naive variants...) on every group except metals.
+- The development window shows the same pattern.
+
+The earlier 2024-26 check (`make champion`) is exploratory only. That period had already been looked at, so it is not
+evidence. The LightGBM quantile model is kept there as a reported row (quantile loss ×1.13 to ×1.25 of naive) and is
+never used.
 - Diagnostics: ADF + KPSS (log levels non-stationary, monthly changes stationary), STL (weak seasonality), Ljung-Box on
   forecast errors (no remaining autocorrelation at 3 months), Kupiec on coverage (hardened backtest).
 
@@ -66,8 +78,8 @@ What this means:
   (`uv run python -m src.testbench.audit`).
 - **Leak canaries on the real data** (planted leak detected, permuted future gives no gain, truncation and off-by-one
   checks): pass in both modes (`uv run python -m src.testbench.pipeline --canaries`).
-- Signals and settings were chosen on data before 2024 (or on the dev window 2010–2021 for the hardened backtest). Two
-  later decisions (champion v1 vs v2, LightGBM vs champion) use 2024–26 with a rule fixed beforehand.
+- Every decision about the submitted model was taken on the development window (targets 2010 to 2021). The graded
+  window 2022-01 to 2026-09 was scored once from a tagged commit, and the pipeline refuses to grade a tag twice.
 
 ## 5. Prerequisites and quickstart
 
@@ -111,7 +123,8 @@ Measured on a laptop, CPU only (estimate: ~30 W, ~0.25 kgCO₂e/kWh EU mix):
 
 | Run | Model time | Estimate |
 |---|---|---|
-| `make champion` (screening + 2024-26 check of 5 models + CSV) | ~130 s | ~0.3 gCO₂e |
+| `make graded` (14 models, 201 origins, both modes in parallel, run once) | 4,854 s (~81 min) | ~10 gCO₂e |
+| `make champion` (screening + 2024-26 check of 5 models) | ~130 s | ~0.3 gCO₂e |
 | `make business` (12 modules) | ~10–20 s | ~0.03 gCO₂e |
 | baseline backtest (6 models × 16 targets × 82 origins) | ~80 s | ~0.2 gCO₂e |
 
@@ -161,7 +174,7 @@ uv run python -m src.business.run_all
 ```
 
 Outputs (confidential, gitignored) go to `data/outputs/business/`, with a summary in `REPORT.md`. See `docs/business.md`.
-The business modules read the forecasts of the graded model (`champion_wf`) when a graded run exists, otherwise the
+The business modules read the forecasts of the graded model (`champion_wf2`) when a graded run exists, otherwise the
 champion, otherwise `naive_vol`, and refresh automatically when a newer forecast file appears.
 
 ## 12. Contributions (by branch)
@@ -217,11 +230,13 @@ Analysis notebooks and reports, in their NDA-safe version ([public/README.md](pu
 | `test`       | Run the unit tests (synthetic data only)       |
 | `verify`     | Local checks on real data (data fixes, drivers)|
 | `backtest`   | Full baseline backtest (slow)                  |
-| `champion`   | Champion v1 + draft submission CSV             |
+| `champion`   | Champion v1, 2024-26 check (exploratory)       |
 | `champion-v2`| Champion v2 option (files suffixed `_v2`)      |
 | `compare`    | Champion v1 vs v2 + provided-series table      |
+| `graded`     | One-shot graded run (tagged commit only)       |
+| `submit`     | Submission CSV from the graded run (`TAG=`)    |
 | `business`   | Business modules + `REPORT.md`                 |
-| `submission` | Alias of `champion`                            |
+| `submission` | Alias of `submit`                              |
 | `ai`         | AI track: pretrained models (installs torch)   |
 | `ai-plots`   | AI track figures (run `ai` first; private)     |
 | `scan`       | NDA leak scan before every push                |
