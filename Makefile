@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install hooks lock lab clean clean-venv \
-	data-check fetch test verify backtest champion champion-v2 compare graded submit business submission ai ai-plots scan all
+	data-check fetch test verify backtest champion champion-v2 compare graded submit app business submission ai ai-plots scan all
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -49,13 +49,16 @@ champion-v2: ## Champion v2 option (extended energy candidates), files suffixed 
 compare: ## Champion v1 vs v2 (pre-registered rule) + provided-series status table
 	uv run python -m src.checks.compare_champions && uv run python -m src.checks.provided_series_table
 
-TAG ?= backtest-freeze-v3
+TAG ?= backtest-freeze-v4
 
 graded: ## One-shot graded run 2022-26 (needs a clean tagged HEAD + passing canaries; refuses a tag already graded)
 	uv run python -m src.testbench.pipeline --graded
 
-submit: ## The submission CSV, from the graded run of TAG (default backtest-freeze-v3)
+submit: ## The submission CSV, from the graded run of TAG (default backtest-freeze-v4)
 	uv run python -m src.testbench.pipeline --submit --tag $(TAG)
+
+app: ## Local scenario app (shocks -> BOM cost -> margin). Local only: never deploy (licensed data)
+	uv run --group app streamlit run src/app/streamlit_app.py
 
 business: ## Business modules (pricing levers, TCO, suppliers...) + REPORT.md
 	uv run python -m src.business.run_all

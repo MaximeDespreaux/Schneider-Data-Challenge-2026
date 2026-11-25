@@ -1,0 +1,8 @@
+# Local only: the app shows licensed and confidential data. Never deploy it.
+[server]
+address = "localhost"
+headless = true
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"
