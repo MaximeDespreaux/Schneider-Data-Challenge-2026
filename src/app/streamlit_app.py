@@ -1,4 +1,4 @@
-"""Scenario app: material and energy shocks -> BOM cost -> margin by quote policy. LOCAL ONLY (licensed data).
+"""Quote risk simulator: material and energy shocks -> BOM cost -> margin by quote rule. LOCAL ONLY (licensed data).
 
     make app        (uv run --group app streamlit run src/app/streamlit_app.py)
 """
@@ -20,90 +20,145 @@ from src.app import scenarios as sc
 from src.business.margin_replay import Economics
 from src.testbench.targets import TARGET_IDS
 
-st.set_page_config(page_title="Material cost scenarios", layout="wide")
+st.set_page_config(page_title="Quote risk simulator", page_icon="⚡", layout="wide",
+                   initial_sidebar_state="collapsed")
 
-PRESETS = {
-    "No shock (our forecast only)": dict(kind="sigma", k=0.0),
-    "Market noise (1 sigma)": dict(kind="sigma", k=1.0),
-    "Rare event (2 sigma)": dict(kind="sigma", k=2.0),
-    "Worst move in history (spike or crash, see direction)": dict(kind="worst", k=0.0),
-    "Extreme stress test (10 sigma, beyond history)": dict(kind="sigma", k=10.0),
-    "Power spike at the plant": dict(kind="worst", k=0.0, driver="plant"),
-    "Custom size": dict(kind="sigma", k=None),
+# Schneider Electric greens + neutrals. Chart pair validated for colour-blind readers (dataviz validator).
+GREEN, LIFE_GREEN, BLUE, RED, INK, MUTED, GRID = "#009530", "#3DCD58", "#42B4E6", "#DC0A0A", "#333333", "#626469", "#E6E8E6"
+PRODUCT_LABEL = {"RM6": "RM6", "AirSeT": "RM AirSeT"}
+SCENARIOS = {  # label -> shock definition; "plant" = the product's plant power price (local config)
+    "No shock": dict(kind="sigma", k=0.0),
+    "Normal noise": dict(kind="sigma", k=1.0),
+    "Rare event": dict(kind="sigma", k=2.0),
+    "Worst in history": dict(kind="worst", k=0.0),
+    "Extreme stress": dict(kind="sigma", k=10.0),
+    "Plant power spike": dict(kind="worst", k=0.0, driver="plant"),
 }
-POLICY_NAMES = {"spot": "Fixed price on today's cost", "p50_model": "Fixed price on our median forecast",
-                "p90_model": "Fixed price with P90 buffer (our forecast)", "p90_hist": "Fixed price with historical P90 buffer",
-                "clause_3": "Index clause +/-3%", "clause_5": "Index clause +/-5%", "clause_10": "Index clause +/-10%",
-                "hedge_cu": "Copper bought forward", "hedge_cu_clause_5": "Copper forward + clause +/-5%"}
+SCENARIO_HELP = {
+    "No shock": "Our forecast as it is.",
+    "Normal noise": "A typical move (1 sigma) over the offer.",
+    "Rare event": "A 1-in-20 move (2 sigma).",
+    "Worst in history": "The largest move ever seen over the same number of months.",
+    "Extreme stress": "10 sigma, far beyond anything in history. A stress test only.",
+    "Plant power spike": "The worst power-price move at the plant, passed into materials.",
+}
+RULES = {"spot": "Fixed price", "p50_model": "Fixed, on our median", "p90_model": "Fixed + forecast buffer",
+         "p90_hist": "Fixed + historical buffer", "clause_3": "Index clause ±3%", "clause_5": "Index clause ±5%",
+         "clause_10": "Index clause ±10%", "hedge_cu": "Copper bought forward",
+         "hedge_cu_clause_5": "Copper forward + clause ±5%"}
 POINTS = ("favourable", "central", "adverse")
+TOUR = [
+    ("Welcome", "This tool shows what happens to the **margin of a fixed-price offer** if raw-material prices move "
+                "between the quote and the purchase. It takes 30 seconds to learn."),
+    ("1 · Choose the offer", "Pick the **product** and **how many months** the price stays fixed."),
+    ("2 · Choose a scenario", "Pick what might happen to prices, from **no shock** to a **worst-in-history** move."),
+    ("3 · Read the verdict", "The coloured box tells you if a fixed price is safe and, if not, the **cheapest quote "
+                             "rule** that keeps the margin above the floor."),
+    ("Go further", "The tabs show the cost outlook, every quote rule and each material. "
+                   "**Settings** (top-left arrow) hold the assumptions: margins, confidence level, which price moves."),
+]
 
 
-@st.cache_resource(show_spinner="Loading the graded forecasts and the price history...")
+@st.cache_resource(show_spinner="Loading forecasts and price history...")
 def load(tag: str) -> I.Inputs:
     return I.load(tag)
 
 
-def pct(x: float) -> str:
-    return f"{x:+.1%}"
+def pct(x: float, signed: bool = True) -> str:
+    return f"{x:+.1%}" if signed else f"{x:.1%}"
 
 
-# ------------------------------------------------------------------------------------------------ sidebar
+def close_tour():
+    st.session_state.tour_open = False
+
+
+@st.dialog("Quick tour", on_dismiss=close_tour)
+def tour():
+    i = st.session_state.get("tour_i", 0)
+    title, body = TOUR[i]
+    st.markdown(f"#### {title}")
+    st.markdown(body)
+    st.progress((i + 1) / len(TOUR), text=f"Step {i + 1} of {len(TOUR)}")
+    back, nxt = st.columns(2)
+    if i > 0 and back.button("Back", width="stretch"):
+        st.session_state.tour_i = i - 1
+        st.rerun()
+    last = i == len(TOUR) - 1
+    if nxt.button("Start" if last else "Next", type="primary", width="stretch"):
+        st.session_state.tour_i = 0 if last else i + 1
+        st.session_state.tour_open = not last
+        st.rerun()
+
+
+st.session_state.setdefault("tour_open", st.query_params.get("tour") != "0")  # ?tour=0 skips it (demos)
+if st.session_state.tour_open:
+    tour()
+
+# ------------------------------------------------------------------------------------------------ settings (sidebar)
 sb = st.sidebar
-sb.caption("Runs on this computer only. It reads licensed and confidential data: never deploy it on a server.")
-tag = sb.selectbox("Forecast source", I.sources(),
-                   format_func=lambda t: "Compute the 2026-09 forecast here (first run ~1-2 min)" if t == I.FRESH
-                   else f"Graded run {t}",
-                   help="Graded runs (newest first) come from the frozen backtest. Without one, the same model is "
-                        "run once at the 2026-09 origin and cached.")
+sb.header("Settings")
+sb.caption("Runs on this computer only. Licensed data: never deploy it on a server.")
+tag = sb.selectbox("Forecast", I.sources(), format_func=lambda t: "Compute here (first run ~20 s)" if t == I.FRESH
+                   else f"Graded run {t}", help="Graded runs come from the frozen backtest, newest first.")
 inp = load(tag)
-product = sb.radio("Product", list(TARGET_IDS), horizontal=True)
-h = sb.radio("Horizon (months after the quote)", I.HORIZONS, index=1, horizontal=True)
-level = sb.select_slider("Confidence level of the range", [0.50, 0.80, 0.90, 0.98], value=0.80,
-                         format_func=lambda v: f"{v:.0%}")
 
-sb.subheader("Shock scenario")
-preset = sb.selectbox("Scenario", list(PRESETS))
-p = dict(PRESETS[preset])
-plant = I.plant_power(inp.assumptions, product)  # from the local config (NDA), may be None
-if p.get("driver") == "plant":
-    if plant in inp.panel:
-        p["driver"] = plant
-        sb.caption(f"Plant power price: {I.ENERGY.get(plant, plant)} (local config).")
-    else:
-        sb.warning("Set plant_power_series in config/assumptions.yaml to use this scenario. No shock applied.")
-        p = dict(kind="sigma", k=0.0)
-up = sb.radio("Direction", ["Prices up (cost shock)", "Prices down"], horizontal=True).startswith("Prices up")
+# ------------------------------------------------------------------------------------------------ header + steps 1, 2
+head, tour_btn = st.columns([6, 1], vertical_alignment="center")
+head.markdown(f"<h2 style='margin:0'><span style='color:{LIFE_GREEN}'>●</span> Quote risk simulator</h2>"
+              f"<span style='color:{MUTED}'>Price fixed in September 2026, materials bought later. "
+              "What happens to the margin?</span>", unsafe_allow_html=True)
+if tour_btn.button("Quick tour", icon=":material/play_circle:", width="stretch"):
+    st.session_state.tour_open, st.session_state.tour_i = True, 0
+    st.rerun()
+
+c1, c2, c3 = st.columns([1.1, 1.1, 3])
+product = c1.segmented_control("1 · Product", list(TARGET_IDS), default="RM6", format_func=PRODUCT_LABEL.get,
+                               required=True)
+h = c2.segmented_control("Price fixed for", list(I.HORIZONS), default=6, format_func=lambda m: f"{m} months",
+                         required=True)
+scenario = c3.pills("2 · Scenario", list(SCENARIOS), default="Normal noise", required=True,
+                    help="\n".join(f"- **{k}**: {v}" for k, v in SCENARIO_HELP.items()))
+st.caption(SCENARIO_HELP[scenario])
+
 w = inp.weights[inp.weights["product"] == product].set_index("series")
-names = {s: m.replace("_", " ") for s, m in w["material"].items()} | I.ENERGY
+names = {s: m.replace("_", " ").capitalize() for s, m in w["material"].items()} | I.ENERGY
+plant = I.plant_power(inp.assumptions, product)  # from the local config (NDA), may be None
+
+# advanced settings
+sb.subheader("Scenario")
+p = dict(SCENARIOS[scenario])
+if p.get("driver") == "plant" and plant not in inp.panel:
+    sb.warning("Set plant_power_series in config/assumptions.yaml to use the plant power scenario.")
+    p = dict(kind="sigma", k=0.0)
+up = sb.segmented_control("Direction", ["Prices up", "Prices down"], default="Prices up", required=True) == "Prices up"
 drivers = [sc.MARKET] + list(w.index) + [s for s in I.ENERGY if s in inp.panel]
-label = {sc.MARKET: "All materials and energy at once"} | names
-default_driver = p.get("driver", sc.MARKET)
-driver = sb.selectbox("What is shocked", drivers, index=drivers.index(default_driver), format_func=label.get,
-                      disabled=p["k"] == 0.0 and p["kind"] == "sigma")
-k = p["k"] if p["k"] is not None else sb.slider("Shock size (sigma)", 0.0, 10.0, 2.0, 0.5)
+label = {sc.MARKET: "Everything at once"} | names
+default_driver = plant if p.get("driver") == "plant" else sc.MARKET
+driver = sb.selectbox("What moves", drivers, index=drivers.index(default_driver), format_func=label.get,
+                      help="'Everything at once' moves every price by the same number of sigmas (cautious).")
 follow = True
 if driver != sc.MARKET:
-    follow = sb.radio("Other prices", ["Others follow (historical co-movement)", "Only this material moves"]
-                      ).startswith("Others")
-shock = sc.Shock(driver=driver, kind=p["kind"], k=k, up=up)
+    follow = sb.toggle("Other prices follow (historical co-movement)", value=True)
+if sb.toggle("Custom shock size", value=False):
+    p = dict(kind="sigma", k=sb.slider("Shock size (sigma)", 0.0, 10.0, 2.0, 0.5))
+level = sb.select_slider("Confidence of the range", [0.50, 0.80, 0.90, 0.98], value=0.80,
+                         format_func=lambda v: f"{v:.0%}", help="80% = 1-in-10 chance of being above the high end.")
+shock = sc.Shock(driver=driver, kind=p["kind"], k=p["k"], up=up)
 
 sb.subheader("Economics (assumptions)")
 eco0 = I.default_economics(inp, product)
-share = sb.slider("Material cost, share of selling price", 0.10, 0.80, float(eco0.material_share), 0.01)
+share = sb.slider("Materials, share of price", 0.10, 0.80, float(eco0.material_share), 0.01)
 margin0 = sb.slider("Target margin", 0.0, 0.50, float(eco0.target_margin), 0.01)
 floor = sb.slider("Margin floor", 0.0, 0.40, float(eco0.floor), 0.01)
-e_share = sb.slider("Plant energy cost, share of price", 0.0, 0.10, 0.0, 0.005, format="%.3f",
+e_share = sb.slider("Plant energy, share of price", 0.0, 0.10, 0.0, 0.005, format="%.3f",
                     help="Assumption, Schneider data not available. 0 by default.")
-sb.caption("Plant energy share: assumption, Schneider data not available.")
-show_eur = sb.checkbox("Show EUR levels (local screen only)", value=False,
-                       help="Off: everything is indexed to 100 at the origin, safe for screenshots.")
+show_eur = sb.toggle("Show EUR levels (local screen only)", value=False)
 eco = Economics(material_share=share, target_margin=margin0, floor=floor)
 
-# ------------------------------------------------------------------------------------------------ scenario
+# ------------------------------------------------------------------------------------------------ computation
 fc = inp.fc.set_index(["series", "horizon"])
-energy = set(I.ENERGY)
 series = list(w.index) + [s for s in I.ENERGY if s in inp.panel and (s, h) in fc.index]
-moves = {hh: sc.scenario_moves(inp.panel, series, hh, I.ORIGIN, shock, follow, energy) for hh in I.HORIZONS}
+moves = {hh: sc.scenario_moves(inp.panel, series, hh, I.ORIGIN, shock, follow, set(I.ENERGY)) for hh in I.HORIZONS}
 
 
 def band(s: str, hh: int, shocked: bool = True):
@@ -125,132 +180,161 @@ def bom(hh: int, shocked: bool = True):
 
 
 base, scen = bom(h, shocked=False), bom(h)
-cu = "D01" if "D01" in w.index else None
-cu_pts = band(cu, h) if cu else (1.0, 1.0, 1.0)
-en_pts = band(plant, h) if (plant, h) in fc.index else (1.0, 1.0, 1.0)
+cu_pts = band("D01", h) if "D01" in w.index else (1.0, 1.0, 1.0)
+en_pts = band(plant, h) if plant and (plant, h) in fc.index else (1.0, 1.0, 1.0)
 q0 = fc.loc[(bom_id, h)]
 tab = sc.margin_table(eco, h, dict(zip(POINTS, zip(scen, cu_pts))),
                       {"p50": q0.p50 / 100, "p90": q0.p90 / 100, "hist_p90": inp.hist_p90.get((product, h), np.nan)},
-                      w_cu=float(w.loc[cu, "weight"]) if cu else 0.0, cu_fwd_ratio=float(np.exp(inp.cu_term * h / 3)),
-                      energy_share=e_share, energy_ratio=dict(zip(POINTS, en_pts)))
+                      w_cu=float(w.loc["D01", "weight"]) if "D01" in w.index else 0.0,
+                      cu_fwd_ratio=float(np.exp(inp.cu_term * h / 3)), energy_share=e_share,
+                      energy_ratio=dict(zip(POINTS, en_pts)))
+mt = tab.pivot_table(index="policy", columns="point", values="margin").reindex(list(RULES))
 rec = I.recommended_policy(inp, product, share, h)
+rec_name = RULES.get(rec[0], rec[0]) if rec else None
+spot = mt.loc["spot"]
 
-# ------------------------------------------------------------------------------------------------ page
-st.title(f"{product}: material cost and margin, {h} months after a quote made in 2026-09")
-if "10 sigma" in preset:
+# ------------------------------------------------------------------------------------------------ step 3: verdict
+st.markdown("##### 3 · Result")
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("Material cost, expected", pct(scen[1] - 1), f"{scen[1] - base[1]:+.1%} from the shock",
+          delta_color="inverse", border=True, help="Change vs September 2026, central case.")
+k2.metric("Material cost, bad case", pct(scen[2] - 1), f"{scen[2] - base[2]:+.1%} from the shock",
+          delta_color="inverse", border=True,
+          help=f"High end of the {level:.0%} range: a 1-in-{round(2 / (1 - level))} chance of being worse.")
+k3.metric("Margin at a fixed price", pct(spot["central"], False), f"{spot['central'] - margin0:+.1%} vs target",
+          border=True)
+k4.metric("Margin at a fixed price, bad case", pct(spot["adverse"], False),
+          f"{spot['adverse'] - floor:+.1%} vs floor ({floor:.0%})", border=True)
+
+if "Extreme" in scenario:
     largest = max(abs(sc.worst_move(inp.panel[s], h, I.ORIGIN, up)) / sc.sigma(inp.panel[s], h, I.ORIGIN)
                   for s in w.index)
-    st.warning(f"Extreme stress test. A 10 sigma move is far outside the price history: the largest {h}-month move "
-               f"of any {product} material was {largest:.1f} sigma. Use it only to test the quote rules.")
-if "plant" in preset and e_share == 0:
-    st.info("The plant power spike reaches the margin through material prices only. Set the plant energy share "
-            "(sidebar) to add the direct cost of power in the plant.")
-
-spot = tab[tab.policy == "spot"].set_index("point")
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Material cost, central", pct(scen[1] - 1), f"{scen[1] - base[1]:+.1%} vs no shock", delta_color="inverse")
-c2.metric(f"Material cost, adverse ({level:.0%} range)", pct(scen[2] - 1))
-c3.metric("Margin at a fixed price, central", f"{spot.at['central', 'margin']:.1%}",
-          f"{spot.at['central', 'margin'] - margin0:+.1%} vs target")
-c4.metric("Margin at a fixed price, adverse", f"{spot.at['adverse', 'margin']:.1%}",
-          "below floor" if spot.at["adverse", "breach"] else "above floor",
-          delta_color="inverse" if spot.at["adverse", "breach"] else "normal")
-
-rec_txt = (f"The quote rule chosen on 2010-21 data for this product, horizon and a material share near "
-           f"{rec[1]:.0%} is **{POLICY_NAMES.get(rec[0], rec[0])}**." if rec else
-           "Run `uv run python -m src.business.run_margin_replay` once to add the recommended quote rule.")
-st.markdown(
-    f"Under **{preset.lower()}** ({label[driver].lower()}, {'up' if up else 'down'}), the {product} material cost "
-    f"is expected to move {pct(scen[1] - 1)} in {h} months, within {pct(scen[0] - 1)} to {pct(scen[2] - 1)} at "
-    f"{level:.0%} confidence. At a fixed price on today's cost, the margin would be {spot.at['central', 'margin']:.1%} "
-    f"in the central case and {spot.at['adverse', 'margin']:.1%} in the adverse case, against a floor of "
-    f"{floor:.0%}. {rec_txt}")
-
-# BOM fan
-rows = [{"h": 0, "lo": 100, "mid": 100, "hi": 100, "case": c} for c in ("Our forecast", "Scenario")]
-for hh in I.HORIZONS:
-    for case, v in (("Our forecast", bom(hh, False)), ("Scenario", bom(hh))):
-        rows.append({"h": hh, "lo": 100 * v[0], "mid": 100 * v[1], "hi": 100 * v[2], "case": case})
-fan = pd.DataFrame(rows)
-colors = alt.Scale(domain=["Our forecast", "Scenario"], range=["#8c8c8c", "#d9480f"])
-x = alt.X("h:Q", title="Months after the quote", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(values=[0, 3, 6, 9]))
-chart = (alt.Chart(fan).mark_area(opacity=0.18).encode(x=x, y=alt.Y("lo:Q", title="BOM material cost (2026-09 = 100)",
-                                                                       scale=alt.Scale(zero=False)),
-                                                      y2="hi:Q", color=alt.Color("case:N", scale=colors, title=None))
-         + alt.Chart(fan).mark_line(point=True).encode(x=x, y="mid:Q", color=alt.Color("case:N", scale=colors)))
-left, right = st.columns([3, 2])
-left.subheader("Material cost of one box")
-left.altair_chart(chart, width="stretch")
-if show_eur:
-    eur0 = float(w["value"].sum())
-    left.caption(f"Priced BOM materials at the origin: {eur0:,.0f} EUR per box. Scenario at {h} months: "
-                 f"{eur0 * scen[0]:,.0f} / {eur0 * scen[1]:,.0f} / {eur0 * scen[2]:,.0f} EUR (low / central / high).")
-
-# margin by policy
-mt = tab.pivot_table(index="policy", columns="point", values="margin").reindex(list(POLICY_NAMES))
+    st.info(f"Stress test only. The largest {h}-month move in history was {largest:.1f} sigma, not 10.",
+            icon=":material/science:")
+# safer rule here: the cheapest one (lowest price markup) that keeps the bad case above the floor, as in our backtest rule
 mk = tab[tab.point == "central"].set_index("policy")["markup"].reindex(mt.index)
-view = pd.DataFrame({"Quote rule": [POLICY_NAMES[i] for i in mt.index], "Price vs today": mk.map(pct).to_numpy(),
-                     "Margin, favourable": mt["favourable"].map("{:.1%}".format).to_numpy(),
-                     "Margin, central": mt["central"].map("{:.1%}".format).to_numpy(),
-                     "Margin, adverse": mt["adverse"].map("{:.1%}".format).to_numpy(),
-                     "Adverse below floor": np.where(mt["adverse"] < floor, "yes", "no")})
-right.subheader("Margin by quote rule")
-right.dataframe(view.style.apply(lambda r: ["font-weight: bold; background-color: rgba(217,72,15,0.12)"] * len(r)
-                                 if rec and r["Quote rule"] == POLICY_NAMES.get(rec[0]) else [""] * len(r), axis=1),
-                hide_index=True, width="stretch")
-right.caption("Copper forward priced from the LME 3-month spread at the origin; EUR/USD held flat. Margins in the "
-              "favourable / central / adverse cases use the low / central / high end of the range.")
+safe = mt.index[mt["adverse"] >= floor]
+FRICTION = ["spot", "p50_model", "hedge_cu", "p90_hist", "p90_model", "clause_10", "hedge_cu_clause_5", "clause_5",
+            "clause_3"]  # ties on markup: fewer price revisions first (backtest tie-break)
+order = pd.DataFrame({"mk": mk.round(4), "fr": [FRICTION.index(r) for r in mk.index]}, index=mk.index)
+best = order.loc[safe].sort_values(["mk", "fr"]).index[0] if len(safe) else mt["adverse"].idxmax()
+if spot["adverse"] >= floor:
+    st.success(f"**A fixed price holds.** Even in the bad case the margin stays at {pct(spot['adverse'], False)}, "
+               f"above the {floor:.0%} floor.", icon=":material/check_circle:")
+elif len(safe):
+    st.warning(f"**A fixed price is risky here.** In the bad case the margin falls to {pct(spot['adverse'], False)}, "
+               f"below the {floor:.0%} floor. Cheapest safe rule: **{RULES[best]}**.", icon=":material/warning:")
+else:
+    st.error(f"**No quote rule keeps the margin above the {floor:.0%} floor in this scenario.** "
+             f"**{RULES[best]}** loses the least. Re-quote or shorten the offer.", icon=":material/error:")
+if rec_name:
+    st.caption(f"★ Default rule from our 2010-21 backtest for this offer: {rec_name}. Quote rules tab for all options.")
+if e_share == 0 and scenario == "Plant power spike":
+    st.caption("The spike reaches the margin through material prices only. Add the plant energy share in Settings "
+               "to include the direct cost.")
 
-# per material
-st.subheader(f"Prices at {h} months, per material and energy")
-mrows = []
-for s in series:
-    if (s, h) not in fc.index:
-        continue
-    b0, b1 = band(s, h, False), band(s, h)
-    mv = moves[h].loc[s]
-    mrows.append({"Series": names.get(s, s), "Weight in BOM": f"{w['weight'].get(s, 0):.0%}" if s in w.index else "energy",
-                  "Our forecast (median)": pct(b0[1] - 1), "Scenario (median)": pct(b1[1] - 1),
-                  f"Scenario {level:.0%} range": f"{pct(b1[0] - 1)} to {pct(b1[2] - 1)}",
-                  "Shock applied": pct(np.exp(mv["move"]) - 1),
-                  "How": {"driver": "shocked", "held": "held", "own": "own shock"}.get(
-                      mv["sample"], f"beta {mv['beta']:.2f}, lag {int(mv['lag'])} m, {mv['sample']} sample"),
-                  "Forecast source": fc.loc[(s, h), "source"]})
-st.dataframe(pd.DataFrame(mrows), hide_index=True, width="stretch")
 
-pick = st.selectbox("Price path of one series", [s for s in series if (s, h) in fc.index], format_func=lambda s: names.get(s, s))
-hist = inp.panel[pick].loc[:I.ORIGIN].dropna().iloc[-48:]
-last = float(fc.loc[(pick, h), "last"])
-hrows = [{"date": d_, "value": 100 * v / last, "kind": "History"} for d_, v in hist.items()]
-frows = [{"date": I.ORIGIN, "lo": 100, "mid": 100, "hi": 100}]
-for hh in I.HORIZONS:
-    lo, mid, hi = band(pick, hh)
-    frows.append({"date": I.ORIGIN + pd.DateOffset(months=hh), "lo": 100 * lo, "mid": 100 * mid, "hi": 100 * hi})
-fr = pd.DataFrame(frows)
-yt = "Price (2026-09 = 100)" if not show_eur else "Price (2026-09 = 100; level shown in the table below)"
-pc = (alt.Chart(pd.DataFrame(hrows)).mark_line(color="#495057").encode(x=alt.X("date:T", title=None),
-                                                                        y=alt.Y("value:Q", title=yt, scale=alt.Scale(zero=False)))
-      + alt.Chart(fr).mark_area(opacity=0.2, color="#d9480f").encode(x="date:T", y="lo:Q", y2="hi:Q")
-      + alt.Chart(fr).mark_line(point=True, color="#d9480f").encode(x="date:T", y="mid:Q"))
-st.altair_chart(pc, width="stretch")
-if show_eur:
-    st.caption(f"Last observed level: {last:,.2f} ({names.get(pick, pick)}).")
+# ------------------------------------------------------------------------------------------------ charts
+def style(chart):
+    return (chart.configure_axis(labelColor=MUTED, titleColor=MUTED, gridColor=GRID, domainColor=GRID,
+                                 tickColor=GRID, labelFontSize=12, titleFontSize=12)
+            .configure_view(strokeWidth=0).configure_legend(orient="top", title=None, labelColor=INK))
 
-with st.expander("How the scenario is built"):
+
+t1, t2, t3, t4 = st.tabs([":material/show_chart: Cost outlook", ":material/rule: Quote rules",
+                          ":material/category: Materials", ":material/help: How it works"])
+
+with t1:
+    rows = [{"Months": 0, "lo": 100, "mid": 100, "hi": 100, "case": c} for c in ("Our forecast", "With the shock")]
+    for hh in I.HORIZONS:
+        for case, v in (("Our forecast", bom(hh, False)), ("With the shock", bom(hh))):
+            rows.append({"Months": hh, "lo": 100 * v[0], "mid": 100 * v[1], "hi": 100 * v[2], "case": case})
+    fan = pd.DataFrame(rows)
+    color = alt.Color("case:N", scale=alt.Scale(domain=["Our forecast", "With the shock"], range=[GREEN, BLUE]),
+                      legend=alt.Legend(title=None))
+    x = alt.X("Months:Q", title="Months after the quote", scale=alt.Scale(domain=[0, 11.5]),
+              axis=alt.Axis(values=[0, 3, 6, 9]))
+    tip = [alt.Tooltip("case:N", title=" "), alt.Tooltip("Months:Q"), alt.Tooltip("mid:Q", title="Expected", format=".1f"),
+           alt.Tooltip("lo:Q", title="Low", format=".1f"), alt.Tooltip("hi:Q", title="High", format=".1f")]
+    area = alt.Chart(fan).mark_area(opacity=0.15).encode(x=x, y=alt.Y("lo:Q", title="Material cost (Sept 2026 = 100)",
+                                                                          scale=alt.Scale(zero=False)), y2="hi:Q", color=color)
+    line = alt.Chart(fan).mark_line(strokeWidth=2, point=alt.OverlayMarkDef(size=64, filled=True)).encode(
+        x=x, y="mid:Q", color=color, tooltip=tip)
+    end = fan[fan.Months == 9].assign(txt=lambda d: d["mid"].round().astype(int).astype(str) + "  " + d["case"].str.lower())
+    lab = alt.Chart(end).mark_text(align="left", dx=8, fontSize=12, color=INK).encode(x=x, y="mid:Q", text="txt:N")
+    st.altair_chart(style(area + line + lab).properties(height=340), width="stretch")
+    st.caption(f"Shaded: the {level:.0%} range. Line: the expected path.")
+    if show_eur:
+        eur0 = float(w["value"].sum())
+        st.caption(f"Priced materials today: {eur0:,.0f} EUR per unit. In {h} months: {eur0 * scen[0]:,.0f} / "
+                   f"{eur0 * scen[1]:,.0f} / {eur0 * scen[2]:,.0f} EUR (low / expected / high).")
+
+with t2:
+    case = st.segmented_control("Case", ["Bad case", "Expected", "Good case"], default="Bad case", required=True)
+    col = {"Bad case": "adverse", "Expected": "central", "Good case": "favourable"}[case]
+    bars = pd.DataFrame({"Rule": [RULES[r] + ("  ★" if r == (rec[0] if rec else None) else "") for r in mt.index],
+                         "Margin": mt[col].to_numpy()})
+    bars["Status"] = np.where(bars.Margin >= floor, "Above floor", "Below floor")
+    order = bars.sort_values("Margin", ascending=False).Rule.tolist()
+    y = alt.Y("Rule:N", sort=order, title=None, axis=alt.Axis(labelLimit=260, labelFontSize=13))
+    b = alt.Chart(bars).mark_bar(cornerRadiusEnd=4, height=18).encode(
+        x=alt.X("Margin:Q", title="Margin", axis=alt.Axis(format="%")), y=y,
+        color=alt.Color("Status:N", scale=alt.Scale(domain=["Above floor", "Below floor"], range=[GREEN, RED])),
+        tooltip=[alt.Tooltip("Rule:N"), alt.Tooltip("Margin:Q", format=".1%"), alt.Tooltip("Status:N")])
+    inside = bars.Margin >= 0.04  # long bars: white label inside the end; short bars: dark label just right of them
+    bars["xpos"] = bars.Margin.clip(lower=0)
+    txt = (alt.Chart(bars[inside]).mark_text(align="right", dx=-6, fontSize=12, color="white", fontWeight="bold")
+           .encode(x="Margin:Q", y=y, text=alt.Text("Margin:Q", format=".1%"))
+           + alt.Chart(bars[~inside]).mark_text(align="left", dx=6, fontSize=12, color=INK, fontWeight="bold")
+           .encode(x="xpos:Q", y=y, text=alt.Text("Margin:Q", format=".1%")))
+    fl = pd.DataFrame({"x": [floor], "t": [f"floor {floor:.0%}"]})
+    rule_floor = (alt.Chart(fl).mark_rule(color=INK, strokeDash=[4, 4], strokeWidth=2).encode(x="x:Q")
+                  + alt.Chart(fl).mark_text(align="left", dx=4, dy=-8, fontSize=12, color=INK, baseline="bottom")
+                  .encode(x="x:Q", y=alt.value(0), text="t:N"))
+    st.altair_chart(style(b + txt + rule_floor).properties(height=36 * len(bars)), width="stretch")
+    st.caption(f"★ = rule chosen on 2010-21 data for a material share near {rec[1]:.0%}." if rec else
+               "Run `uv run python -m src.business.run_margin_replay` once to see the recommended rule.")
+
+with t3:
+    mrows = []
+    for s in series:
+        if (s, h) not in fc.index:
+            continue
+        b0, b1 = band(s, h, False), band(s, h)
+        mrows.append({"Material": names.get(s, s), "Share of cost": 100 * w["weight"].get(s, np.nan),
+                      "Our forecast": 100 * (b0[1] - 1), "With the shock": 100 * (b1[1] - 1),
+                      "Low": 100 * (b1[0] - 1), "High": 100 * (b1[2] - 1)})
+    mdf = pd.DataFrame(mrows)
+    st.dataframe(mdf, hide_index=True, width="stretch", column_config={
+        "Share of cost": st.column_config.ProgressColumn(format="%.0f%%", min_value=0, max_value=100,
+                                                         help="Energy prices are not BOM materials (blank)."),
+        **{c: st.column_config.NumberColumn(format="%+.1f%%") for c in ("Our forecast", "With the shock", "Low", "High")}})
+    st.caption(f"Change by {h} months vs September 2026. Low and high: the {level:.0%} range with the shock.")
+    pick = st.selectbox("Price path", [s for s in series if (s, h) in fc.index], format_func=lambda s: names.get(s, s))
+    hist = inp.panel[pick].loc[:I.ORIGIN].dropna().iloc[-48:]
+    last = float(fc.loc[(pick, h), "last"])
+    hdf = pd.DataFrame({"date": hist.index, "value": 100 * hist.to_numpy() / last})
+    fr = pd.DataFrame([{"date": I.ORIGIN, "lo": 100, "mid": 100, "hi": 100}] +
+                      [dict(zip(("date", "lo", "mid", "hi"), (I.ORIGIN + pd.DateOffset(months=hh),
+                                                              *(100 * v for v in band(pick, hh))))) for hh in I.HORIZONS])
+    yy = alt.Y("value:Q", title="Price (Sept 2026 = 100)", scale=alt.Scale(zero=False))
+    pc = (alt.Chart(hdf).mark_line(color=MUTED, strokeWidth=2).encode(x=alt.X("date:T", title=None), y=yy,
+                                                                       tooltip=[alt.Tooltip("date:T"), alt.Tooltip("value:Q", format=".1f")])
+          + alt.Chart(fr).mark_area(opacity=0.15, color=BLUE).encode(x="date:T", y="lo:Q", y2="hi:Q")
+          + alt.Chart(fr).mark_line(color=BLUE, strokeWidth=2, point=alt.OverlayMarkDef(size=64, filled=True)).encode(
+              x="date:T", y="mid:Q", tooltip=[alt.Tooltip("date:T"), alt.Tooltip("mid:Q", format=".1f", title="Expected")]))
+    st.altair_chart(style(pc).properties(height=300), width="stretch")
+    st.caption(f"Grey: last 4 years. Blue: with the shock, {level:.0%} range. "
+               f"Source: {fc.loc[(pick, h), 'source']}.")
+
+with t4:
     st.markdown(
-        "- **Forecast.** The median and range come from the submitted model's graded run (origin 2026-09). Series "
-        "without a model forecast (energy, some BOM components) use a volatility-scaled range around today's price.\n"
-        "- **Confidence level.** The P10-P90 range is widened or narrowed in proportion to the normal quantiles.\n"
-        "- **Shock size.** One sigma is the standard deviation of the series' historical moves over the same horizon "
-        "(data up to 2026-09). The crash preset uses the worst move actually seen in the history.\n"
-        "- **Co-movement.** Other prices follow the shocked one with their historical sensitivity (beta). For the "
-        "crash preset the sensitivity is estimated on stress periods only (2008-09, 2020, 2021-22), because prices "
-        "move together more in crises. Power prices start in 2016, so their stress sample is 2020-22.\n"
-        "- **Energy.** Energy reaches material prices with the lag (0-6 months) that fits history best. Within the "
-        "horizon only the part of the move that has passed through counts. The direct plant energy line is an "
-        "assumption and is 0 by default.\n"
-        "- **Margin.** Same calculation as the margin-protection replay: a fixed price set at the quote, materials "
-        "bought at the horizon, index clauses and the copper forward as in the replay. The recommended rule is the "
-        "one chosen on 2010-21 data with the pre-registered rule.")
-    st.dataframe(moves[h].assign(series=[names.get(s, s) for s in moves[h].index]).set_index("series").round(3),
-                 width="stretch")
+        "- **Forecast.** Our submitted model, frozen and scored on 2022-26. Its range widens when markets are volatile.\n"
+        "- **Shock.** One sigma is a typical move over the same number of months. *Worst in history* uses the "
+        "largest move seen, with co-movement measured in crises (2008-09, 2020, 2021-22).\n"
+        "- **Energy.** Reaches material prices with the delay that fits history best.\n"
+        "- **Margin.** Price fixed at the quote, materials bought at the end. Same maths as our margin backtest.\n"
+        "- **★ rule.** Chosen on 2010-21 data with a rule fixed in advance.")
+    with st.expander("How each price was moved"):
+        st.dataframe(moves[h].assign(Material=[names.get(s, s) for s in moves[h].index])
+                     .set_index("Material")[["move", "beta", "lag", "sample"]].round(3), width="stretch")

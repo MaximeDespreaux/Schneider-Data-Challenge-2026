@@ -6,3 +6,27 @@ headless = true
 [browser]
 gatherUsageStats = false
 serverAddress = "localhost"
+
+# Schneider Electric greens (Life Green #3DCD58, dark green #009530) with neutral greys.
+[theme]
+base = "light"
+primaryColor = "#009530"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F5F3"
+textColor = "#333333"
+linkColor = "#009530"
+borderColor = "#DADDDA"
+greenColor = "#009530"
+redColor = "#DC0A0A"
+orangeColor = "#E47F00"
+blueColor = "#42B4E6"
+font = "sans-serif"
+baseRadius = "0.5rem"
+showWidgetBorder = true
+chartCategoricalColors = ["#009530", "#42B4E6"]
+
+[theme.sidebar]
+backgroundColor = "#F3F5F3"
+
+[client]
+toolbarMode = "minimal"   # no "Deploy" button: this app must stay local
