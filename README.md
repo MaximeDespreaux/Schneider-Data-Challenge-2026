@@ -112,6 +112,7 @@ make install      # creates .venv and installs dependencies from uv.lock
 make data-check   # check data/raw/ and config/assumptions.yaml are in place (see docs/SETUP.md)
 make all          # data-check -> fetch -> test -> champion -> business
 make help         # list all targets
+make app          # scenario app in the browser (see section 11)
 ```
 
 Run any command inside the environment with `uv run <cmd>`. Full setup and data layout: [docs/SETUP.md](docs/SETUP.md).
@@ -199,6 +200,34 @@ Outputs (confidential, gitignored) go to `data/outputs/business/`, with a summar
 The business modules read the forecasts of the graded model (`champion_wf2`) when a graded run exists, otherwise the
 champion, otherwise `naive_vol`, and refresh automatically when a newer forecast file appears.
 
+### Scenario app (shocks to margin)
+
+A local app shows our forecast of material and energy prices, lets you apply a shock, and gives the effect on the BOM
+material cost and on the margin of a quote, for every quote rule.
+
+```bash
+make app          # or, without make: uv run --group app streamlit run src/app/streamlit_app.py
+```
+
+It opens at http://localhost:8501. The first `make app` installs Streamlit (uv `app` group). It needs the same local
+data as the rest of the repository (`make data-check`). Nothing else is required: without a graded run, the app
+computes the 2026-09 forecast of the submitted model once (about 20 seconds) and caches it in `data/outputs/app/`.
+Run `uv run python -m src.business.run_margin_replay` once to add the recommended quote rule from the decision map.
+
+- Choose the product, the horizon (3, 6 or 9 months) and the confidence level of the range (50% to 98%).
+- Scenarios: market noise (1 sigma), a rare event (2 sigma), the worst move in the history, an extreme stress test
+  (10 sigma, far beyond anything in the history and labelled as such), a power-price spike at the product's plant
+  (set `plant_power_series` in `config/assumptions.yaml`), or a custom size. One sigma is the standard deviation of the
+  series' moves over the same horizon.
+- Shock one material or energy price, or everything at once. Other prices either stay put or follow their historical
+  co-movement. For the worst-move scenario, co-movement is measured on stress periods (2008-09, 2020, 2021-22).
+- Energy reaches material prices with the lag that fits history best. A direct plant energy cost can be added as a
+  share of the price (an assumption, 0 by default).
+- The margins use the same calculation as the margin-protection replay (`src/business/margin_replay.py`).
+
+The app runs on your computer only and reads licensed data: do not deploy it on a server. Prices are shown indexed
+(2026-09 = 100) unless you tick "Show EUR levels".
+
 ## 12. Contributions (by branch)
 
 | Member | Main contributions |
@@ -257,6 +286,7 @@ Analysis notebooks and reports, in their NDA-safe version ([public/README.md](pu
 | `compare`    | Champion v1 vs v2 + provided-series table      |
 | `graded`     | One-shot graded run (tagged commit only)       |
 | `submit`     | Submission CSV from the graded run (`TAG=`)    |
+| `app`        | Local scenario app (shocks to margin)          |
 | `business`   | Business modules + `REPORT.md`                 |
 | `submission` | Alias of `submit`                              |
 | `ai`         | AI track: pretrained models (installs torch)   |
