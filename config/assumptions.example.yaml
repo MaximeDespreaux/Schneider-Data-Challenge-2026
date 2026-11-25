@@ -51,6 +51,11 @@ material_series_eurostat:           # used only if steel_price_source = eurostat
 material_series_by_product: {}
 #  <RM6 or AirSeT>: {carbon_steel: L01_FR}
 
+# Power price at each product's plant, used by the scenario app (plant power spike, direct plant energy line).
+# FILL_LOCALLY for the same reason (plant locations are under NDA). Series: E09 Germany, E10 France, E11 Hungary.
+plant_power_series: {}
+#  <RM6 or AirSeT>: E09
+
 # ---------------------------------------------------------------------
 # 3. BOM (bill of materials)
 # ---------------------------------------------------------------------

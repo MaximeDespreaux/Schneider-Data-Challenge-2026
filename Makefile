@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install hooks lock lab clean clean-venv \
-	data-check fetch test verify backtest champion champion-v2 compare graded submit business submission ai ai-plots scan all
+	data-check fetch test verify backtest champion champion-v2 compare graded submit app business submission ai ai-plots scan all
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -56,6 +56,9 @@ graded: ## One-shot graded run 2022-26 (needs a clean tagged HEAD + passing cana
 
 submit: ## The submission CSV, from the graded run of TAG (default backtest-freeze-v4)
 	uv run python -m src.testbench.pipeline --submit --tag $(TAG)
+
+app: ## Local scenario app (shocks -> BOM cost -> margin). Local only: never deploy (licensed data)
+	uv run --group app streamlit run src/app/streamlit_app.py
 
 business: ## Business modules (pricing levers, TCO, suppliers...) + REPORT.md
 	uv run python -m src.business.run_all
