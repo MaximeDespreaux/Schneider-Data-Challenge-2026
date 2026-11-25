@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install hooks lock lab clean clean-venv \
-	data-check fetch test verify backtest champion champion-v2 compare business submission ai ai-plots scan all
+	data-check fetch test verify backtest champion champion-v2 compare graded submit business submission ai ai-plots scan all
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -40,7 +40,7 @@ verify: ## Local checks on real data: data fixes + driver model sanity check
 backtest: ## Full forecast backtest of the baseline models (slow)
 	uv run python -m src.testbench.run
 
-champion: ## Champion v1: screening, 2024-26 holdout, draft submission CSV
+champion: ## Champion v1: signal screening + 2024-26 check (exploratory, no CSV)
 	uv run python -m src.external.run_champion
 
 champion-v2: ## Champion v2 option (extended energy candidates), files suffixed _v2
@@ -48,6 +48,14 @@ champion-v2: ## Champion v2 option (extended energy candidates), files suffixed 
 
 compare: ## Champion v1 vs v2 (pre-registered rule) + provided-series status table
 	uv run python -m src.checks.compare_champions && uv run python -m src.checks.provided_series_table
+
+TAG ?= backtest-freeze-v3
+
+graded: ## One-shot graded run 2022-26 (needs a clean tagged HEAD + passing canaries; refuses a tag already graded)
+	uv run python -m src.testbench.pipeline --graded
+
+submit: ## The submission CSV, from the graded run of TAG (default backtest-freeze-v3)
+	uv run python -m src.testbench.pipeline --submit --tag $(TAG)
 
 business: ## Business modules (pricing levers, TCO, suppliers...) + REPORT.md
 	uv run python -m src.business.run_all
@@ -61,6 +69,6 @@ ai-plots: ## AI track: plot scores and live forecast (run make ai first)
 scan: ## NDA leak scan of everything that may be pushed (needs the local data)
 	uv run python public/scan_leaks.py
 
-submission: champion ## Alias of champion: writes the draft submission CSV in data/outputs/testbench/
+submission: submit ## Alias of submit
 
 all: data-check fetch test champion business ## data-check -> fetch -> test -> champion -> business (stops on first failure)

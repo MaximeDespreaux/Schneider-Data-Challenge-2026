@@ -69,7 +69,7 @@ inférieure à celle de la v1 moins 0,02. Sinon garder la v1.
 
 ```
 uv run python -m src.external.fetch_public
-uv run python -m src.external.run_champion                    # v1 -> champion_holdout.parquet, ..._champion.csv
+uv run python -m src.external.run_champion                    # v1 -> champion_holdout.parquet (pas de CSV)
 uv run python -m src.external.run_champion --candidates v2    # v2 -> fichiers suffixés _v2
 uv run python -m src.checks.compare_champions                 # applique la règle : ADOPT V2 / KEEP V1
 uv run python -m src.checks.provided_series_table             # statut de chaque série fournie (utilisée ou non)

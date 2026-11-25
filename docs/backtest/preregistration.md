@@ -90,8 +90,23 @@ Written before the graded run. Committed and tagged together with the code that 
   - The Kupiec test pools hits across a group's series, so its p-values are too confident; it is reported only.
   - The canaries run on the assembled panel (identity `prepare`), so panel construction itself is covered by the truncation tests of the loaders and the BOM deriver, not by the canaries.
 
+## Amendment 2 before grading (2026-11-22, freeze v3): submitted model
+
+- **Submitted model: `champion_wf2`, not `wf_blend`.** This is the user's decision, taken on dev-window evidence before any graded number. The walk-forward champion beat the blend on most groups at 3 months; the blend diluted it with weaker models. `wf_blend`, `wf_best` and `wf_median` are still computed and reported, never used to switch after grading.
+- **`champion_wf2` = `champion_wf` with extra candidate signals for its walk-forward screen:**
+  - the licensed market price vs index gap (and its deviation from the 24-month mean), Report 3's strongest signal;
+  - regime-gated momentum (3-month change while not overextended) and mean reversion (distance to the 24-month mean once overextended).
+
+  The rule was written in the ledger before the evaluation: adopt v2 if its pooled dev pinball loss is lower than v1's. It was, by a negligible margin (0.95874 against 0.95884 of naive, 7,851 common forecasts), so in substance this is a tie.
+- In the candidate set, `champion_wf2` replaces `champion_wf` (runtime), and the `wf_median` shortlist uses `champion_wf2`. The pass rule, metrics and windows are unchanged and now apply to `champion_wf2`.
+- An exploratory regime model (momentum vs mean reversion with gates) was tried on the dev window. It is not a candidate: it trails the champion on most index-type series. It lives on branch `wip/regime`, not here.
+
 ## Note added on 2026-11-24 (after the text above, which is unchanged)
 
-- **Submitted model.** The text above names `wf_blend`. The code submits `champion_wf` (`src/testbench/candidates.py`, whose comment dates the decision to 2026-11-22, before grading, on dev evidence). This change had not been recorded here.
+- **Submitted model.** The text above names `wf_blend`. The code submits `champion_wf` (`src/testbench/candidates.py`, whose comment dates the decision to 2026-11-22, before grading, on dev evidence). This change had not been recorded here. (Main did not yet carry amendment 2 above, which records `champion_wf2`; it was merged from the `backtest-final` branch on 2026-11-25.)
 - **RM6 carbon steel.** Until this date the regional steel price was not listed as a EUR/t series, so RM6 steel was valued at the config price (base month 2026-09) at every past origin. "Weights fixed at t" was therefore not true for that component, in the RM6 index and in the margin replay. Any graded run made before the fix must be re-run under a new tag and reported as a second look.
 - **Meta pass.** In submission mode, series masked by a live gap (licensed and extra inputs) were treated as realised one or more months early. The submitted model is not a meta model.
+
+## Note added on 2026-11-25 (before the v4 run, no v4 number exists yet)
+
+- v4 is a second look on the same graded window after two declared bug fixes (L01_FR valued as EUR/t; meta-pass fix). v3 stays reported as the first look. The submitted CSV comes from v4 if its canaries pass; the README reports v4 as the main table, with the v3 table kept for transparency.
