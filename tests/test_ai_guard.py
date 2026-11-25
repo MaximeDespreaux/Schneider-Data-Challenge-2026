@@ -30,9 +30,14 @@ def test_blocked_words(text):
 
 def test_private_numbers_and_terms_are_refused():
     from src.ai import guard
-    lines = (C.ROOT / "data" / "nda_denylist.txt").read_text().splitlines()
-    num = next(line[4:].strip() for line in lines if line.startswith("num:"))
-    term = next(line.strip() for line in lines if line.strip() and not line.startswith(("#", "num:")))
+    path = C.ROOT / "data" / "nda_denylist.txt"
+    if not path.exists():
+        pytest.skip("no local deny-list (data/nda_denylist.txt)")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    num = next((line[4:].strip() for line in lines if line.startswith("num:")), None)
+    term = next((line.strip() for line in lines if line.strip() and not line.startswith(("#", "num:"))), None)
+    if num is None or term is None:
+        pytest.skip("the local deny-list has no 'num:' line or no term")
     with pytest.raises(guard.NDAViolation):
         guard.check(f"the value was {num} last month")
     with pytest.raises(guard.NDAViolation):

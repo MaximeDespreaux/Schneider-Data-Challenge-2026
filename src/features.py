@@ -202,14 +202,20 @@ def check_no_leakage(targets: pd.DataFrame, exog: pd.DataFrame, h: int, origin: 
 
 
 def bom_masses() -> pd.DataFrame:
-    """BOM masses (data.zip version) per product × price series, kg per unit.
+    """BOM masses (official v1 workbook) per product × price series, kg per unit. Brass and "Other" have no series
+    in this first benchmark and are left out.
 
-    Assumption (flagged in DATA_OVERVIEW.md): RM6 carbon steel = 45% × implied total mass.
+    Older BOM versions had an unlabelled RM6 row ("Carbon steel (to confirm)"); if present it is set to 45% × the
+    implied total mass (assumption flagged in DATA_OVERVIEW.md). The v1 BOM labels RM6 fully.
     """
-    bom = dl.load_bom().dropna(subset=["product_ref"]).iloc[:14].copy()
-    rm6 = bom.query("product_ref == 'RM6_NE_IQI_433520' and material_family == 'Stainless steel'")
-    total = (rm6.mass_kg / rm6.share_pct).iat[0]
-    bom.loc[bom.material_family == "Carbon steel (to confirm)", ["material_family", "mass_kg"]] = ["Carbon steel", round(0.45 * total, 1)]
+    bom = dl.load_bom()
+    bom = bom[bom.plant_code.notna()].copy()  # material rows only (drops the total / implied-mass rows)
+    bom["mass_kg"] = pd.to_numeric(bom.mass_kg, errors="coerce")
+    unl = bom.material_family == "Carbon steel (to confirm)"
+    if unl.any():
+        rm6 = bom.query("product_ref == 'RM6_NE_IQI_433520' and material_family == 'Stainless steel'")
+        total = (rm6.mass_kg / rm6.share_pct).iat[0]
+        bom.loc[unl, ["material_family", "mass_kg"]] = ["Carbon steel", round(0.45 * total, 1)]
     series = {"Carbon steel": "CRU_CR_DE", "Galvanised steel": "CRU_HDG_DE", "Stainless steel": "CRU_SS304_DE",
               "Copper": "D01", "Aluminium": "D02", "Engineering plastic": "S11", "Plastic": "S11"}
     bom["series"] = bom.material_family.map(series)
