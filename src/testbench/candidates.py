@@ -6,9 +6,10 @@ from .driver_models import DriverRidge
 from .models import (AR1Point, Conformal, DampedTrendETS, DriftPoint, MeanReversionPoint, Naive, NaiveGaussian,
                      NaiveVolScaled)
 
-SHORTLIST = ("naive", "naive_vol_hl3", "ar1_conf", "driver_ridge", "champion_wf")
-# Submitted model (user decision 2026-11-22, before grading, on dev evidence): the walk-forward champion.
-SUBMITTED = "champion_wf"
+SHORTLIST = ("naive", "naive_vol_hl3", "ar1_conf", "driver_ridge", "champion_wf2")
+# Submitted model (user decision 2026-11-22, before grading): the walk-forward champion; extended signal set
+# (champion_wf2) adopted by the pre-written dev rule over champion_wf (pooled dev loss 0.95874 vs 0.95884 of naive).
+SUBMITTED = "champion_wf2"
 
 
 def candidate_models() -> list:
@@ -18,4 +19,4 @@ def candidate_models() -> list:
             NaiveVolScaled(halflife=3, name="naive_vol_hl3"), NaiveVolScaled(halflife=6, name="naive_vol_hl6"),
             NaiveVolScaled(halflife=12, name="naive_vol_hl12"),
             Conformal(DriftPoint()), Conformal(AR1Point()), Conformal(MeanReversionPoint()),
-            DriverRidge(), DampedTrendETS(), ChampionWF()]
+            DriverRidge(), DampedTrendETS(), ChampionWF(extended=True, name="champion_wf2")]

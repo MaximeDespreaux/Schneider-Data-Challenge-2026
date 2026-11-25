@@ -84,7 +84,7 @@ make data-check   # 1. files and config in place?
 make fetch        # 2. public data
 make test         # 3. unit tests
 make verify       # 4. optional: checks on the real data
-make champion     # 5. champion v1 + draft submission CSV
+make champion     # 5. champion v1, 2024-26 check (exploratory)
 make business     # 6. business modules + REPORT.md
 # or all of 1, 2, 3, 5, 6 in one go (stops at the first failure):
 make all
@@ -96,16 +96,17 @@ make all
 | `make fetch` | FRED, Eurostat (incl. electronics EL01–EL03, energy E14/E15), NY Fed GSCPI; a source is skipped if its file already has all series | `data/raw/external/` | ~25 s (first time) |
 | `make test` | unit tests on synthetic data | console | ~3 s |
 | `make verify` | data-fix checks (steel, epoxy, BOM v2, BOM indices) and a DriverRidge sanity check | `data/outputs/checks/` | a few seconds each (~6 s for the driver check) |
-| `make champion` | signal screening, 2024-26 holdout (naive, naive_vol, champion, driver_ridge), draft submission CSV; prints its compute footprint | `data/outputs/external/`, `data/outputs/testbench/` | ~15 s |
+| `make champion` | signal screening, 2024-26 check (naive, naive_vol, champion, driver_ridge, LightGBM), exploratory, no CSV; prints its compute footprint | `data/outputs/external/` | ~15 s |
 | `make champion-v2` | same with the extended energy candidates, files suffixed `_v2` | same folders | ~20 s |
 | `make compare` | v1 vs v2 with the pre-registered rule; status of every provided series | `data/outputs/checks/` | a few seconds |
 | `make business` | all business modules, figures, `REPORT.md`, compute footprint | `data/outputs/business/` | ~5 s |
+| `make submit` | the submission CSV, read from the graded run of tag `backtest-freeze-v3` (the only command that writes it) | `data/outputs/backtest/graded/<tag>/` | ~1 min (panel build) |
 | `make backtest` | full backtest of the baseline models | `data/outputs/testbench/<mode>/` | a few minutes (not part of `make all`) |
 
 ## f. Outputs map
 | Result | File |
 |---|---|
-| Draft submission CSV (champion v1) | `data/outputs/testbench/draft_forecast_202609_champion.csv` (v2: `..._champion_v2.csv`) |
+| Submission CSV (champion_wf2, graded run) | `data/outputs/backtest/graded/backtest-freeze-v3/team_01_forecast_202609.csv` |
 | Backtest scores (baselines) | `data/outputs/testbench/<mode>/scores.csv`, `overview.csv`, `holdout_selection.csv` |
 | Champion holdout scores | `data/outputs/external/champion_holdout_scores.csv` (v2: `..._v2.csv`); forecasts in `champion_holdout.parquet` |
 | Signal screening | `data/outputs/external/signal_screen.csv` (v2: `signal_screen_v2.csv`) |

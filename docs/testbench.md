@@ -20,7 +20,11 @@ uv run python -m src.business.run_margin_replay      # Goal A : quelle politique
   acier régional par produit (MEPS France CR), composantes prolongées jusqu'à l'origine (indice = 100),
   historique chaîné quand une composante démarre plus tard. Plastiques / électronique : niveau EUR/kg de config.
 - **Choix du modèle walk-forward** (`meta.py`) : à chaque origine, seulement les prévisions déjà réalisées ;
-  `wf_best`, `wf_blend`, `wf_median` (modèle soumis : `candidates.SUBMITTED` = `champion_wf`). Plus de choix sur 2024-26 (déjà regardé).
+  `wf_best`, `wf_blend`, `wf_median`, calculés et rapportés seulement. Le modèle soumis est `candidates.SUBMITTED` =
+  `champion_wf2` (walk-forward champion, signaux étendus), choisi sur la fenêtre dev avant le run noté (amendement 2 de
+  `docs/backtest/preregistration.md`). Plus de choix sur 2024-26 (déjà regardé).
+- **Run noté et CSV** : `make graded` (une seule fois, commit taggé `backtest-freeze-v3`, période 2022-01..2026-09) puis
+  `make submit`, seule commande qui écrit le CSV de soumission (lit le run noté du tag).
 - **Statistiques** (`stats.py`) : DM ordonné (HAC + HLN), Clark-West, DM groupé par famille + Holm, IC bootstrap
   par blocs, MDE par placebos, Kupiec / Christoffersen / Ljung-Box sur origines non chevauchantes.
 - **Canaris** (`canaries.py`) : fuite plantée, cible permutée, identité de troncature, décalage d'un mois.
@@ -137,13 +141,13 @@ Modules métier (pricing objectif A, objectif B, décarbonation) : voir [busines
 
 ## Modélisation complémentaire (24/11)
 - **Modèle ML** : `src/testbench/ml_models.py::LGBMQuantile` (LightGBM quantile 10/50/90 %, dynamique propre de la
-  série). Scoré sur la vérification 2024-26 de `run_champion` à côté du champion. **Règle fixée avant les résultats**
-  (`run_champion.ml_replaces_champion`, même règle que champion v1/v2) : il remplace le champion seulement si sa rel_QL
-  médiane est plus basse ET sa couverture médiane ≥ celle du champion − 0,02. Si c'est le cas, ses prévisions sont
-  écrites sous le nom `champion` pour que le business suive automatiquement. Décision : `champion_vs_lgbm_q.csv`.
+  série). Scoré sur la vérification 2024-26 de `run_champion` à côté du champion, comme ligne rapportée. La règle
+  `run_champion.ml_replaces_champion` (rel_QL médiane plus basse ET couverture médiane ≥ celle du champion − 0,02) est
+  calculée pour information dans `champion_vs_lgbm_q.csv` mais n'est plus appliquée : le modèle soumis vient du run
+  noté, et 2024-26 a déjà été regardé.
 - **Ljung-Box** sur les erreurs du P50 (origines non chevauchantes) : `metrics.ljung_box_table`, sortie
   `champion_ljungbox.csv`. Kupiec et ETS amorti sont dans le pipeline renforcé (`src/testbench/pipeline.py`).
 - **KPSS + STL** (stationnarité / saisonnalité) : section 3 du notebook d'exploration `notebooks/01_eda_julia.ipynb`.
 - **Source des prévisions du business** (`src/business/forecasts.py`) : modèle de `config/business.yaml`
-  (`champion_wf`, passage noté) → à défaut le **champion** (`champion_holdout.parquet`) → à défaut `naive_vol`. Le cache
+  (`champion_wf2`, passage noté) → à défaut le **champion** (`champion_holdout.parquet`) → à défaut `naive_vol`. Le cache
   est invalidé automatiquement dès qu'un fichier source plus récent existe.
