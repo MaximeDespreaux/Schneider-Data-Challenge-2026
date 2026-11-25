@@ -36,7 +36,7 @@ data (challenge panel + licensed steel + epoxy + public data)  →  causal panel
 
 The submitted model is `champion_wf2`. It was chosen on the development window (forecast targets 2010 to 2021) before
 any graded number was seen. The graded window was scored once from the tagged commit `backtest-freeze-v3`, after the
-leak canaries passed. Two bugs were then found and fixed (the regional RM6 steel price was not valued in EUR/t at past
+leak canaries passed. Two bugs were then found and fixed (a regional steel price was not valued in EUR/t at past
 origins, and a meta-model step saw some inputs a month early). As written in
 [preregistration.md](docs/backtest/preregistration.md) before any new number existed, we re-ran the same window once
 from `backtest-freeze-v4` as a declared second look. v4 is our main result and the submitted CSV comes from it. v3
