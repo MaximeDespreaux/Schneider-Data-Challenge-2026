@@ -1,6 +1,7 @@
-"""Une commande pour : criblage des signaux (exploration) -> vérification 2024-26 du champion -> CSV de soumission.
+"""Une commande pour : criblage des signaux (exploration) -> vérification 2024-26 du champion (exploratoire).
 
-Le champion noté et soumis est ``ChampionWF`` : criblage refait à chaque origine sur les seules cibles réalisées.
+Le champion est ``ChampionWF`` : criblage refait à chaque origine sur les seules cibles réalisées. Le modèle soumis
+(``champion_wf2``) et le seul CSV de soumission viennent du run noté : ``python -m src.testbench.pipeline --submit``.
 Le criblage global (``screen``) n'est écrit que pour l'exploration. Les séries absentes au bord du live (origine
 2026-09) sont masquées du même nombre de mois à chaque origine, comme dans ``testbench.pipeline``.
 
@@ -9,7 +10,7 @@ Le criblage global (``screen``) n'est écrit que pour l'exploration. Les séries
 
 Pré-requis : données du challenge dans data/raw/, données publiques téléchargées
 (`uv run python -m src.external.fetch_public`), config/assumptions.yaml rempli en local.
-Sorties (confidentielles, gitignorées) : data/outputs/external/ et data/outputs/testbench/.
+Sorties (confidentielles, gitignorées) : data/outputs/external/.
 """
 
 from __future__ import annotations
@@ -31,9 +32,7 @@ from src.testbench.ml_models import LGBMQuantile
 from src.testbench.models import Naive, NaiveVolScaled
 from src.testbench.pipeline import lags_for
 from src.testbench.run import bom_deriver, default_targets
-from src.testbench.submission import from_forecasts, validate_submission
 
-BOM_IDS = ["RM6_NE_IQI_433520", "RMAirSeT_IIQ_24kV_IEC"]
 ORIGIN = "2026-09"
 
 
@@ -41,7 +40,7 @@ CANDIDATES = {"v1": {"cross": None, "model": "champion", "suffix": ""},
               "v2": {"cross": tuple(CROSS_V2), "model": "champion_v2", "suffix": "_v2"}}
 
 
-TEAM_ID = "team_01"  # X-HEC DSAIB 2025-27, team 1
+TEAM_ID = "team_01"  # X-HEC DSAIB 2025-27, team 1 (read by src/ai; the submission CSV uses config backtest.team_id)
 
 
 def ml_replaces_champion(tab: pd.DataFrame, champion: str, ml: str, tol: float = 0.02) -> dict:
@@ -58,7 +57,7 @@ def ml_replaces_champion(tab: pd.DataFrame, champion: str, ml: str, tol: float =
             "ml_rel_QL": q_m, "champion_rel_QL": q_c, "ml_coverage": c_m, "champion_coverage": c_c}
 
 
-def main(team_id: str = TEAM_ID, candidates: str = "v1"):
+def main(candidates: str = "v1"):
     opt = CANDIDATES[candidates]
     sfx = opt["suffix"]
     t_start = time.perf_counter()
@@ -68,7 +67,7 @@ def main(team_id: str = TEAM_ID, candidates: str = "v1"):
     derive = bom_deriver(panel)
     targets = default_targets(panel)  # 14 séries Schneider + séries ajoutées présentes + 2 indices BOM
 
-    print(f"1/3 criblage des signaux (cibles < 2024), candidats {candidates}")
+    print(f"1/2 criblage des signaux (cibles < 2024), candidats {candidates}")
     t0 = time.perf_counter()
     res = screen(panel, cross=opt["cross"])
     t_screen = time.perf_counter() - t0
@@ -76,7 +75,7 @@ def main(team_id: str = TEAM_ID, candidates: str = "v1"):
     champ = ChampionWF(name=opt["model"], cross=opt["cross"])
     lags = lags_for("submission", panel, targets, f"{ORIGIN}-01")  # bord irrégulier du live, appliqué à chaque origine
 
-    print("2/3 vérification sur 2024-26 (sert aussi aux règles v1/v2 et champion/LightGBM : ce n'est pas un test vierge)")
+    print("2/2 vérification sur 2024-26 (exploratoire : déjà regardée, ce n'est pas un test vierge)")
     ml = LGBMQuantile()
     fc = run_backtest(panel, targets, [Naive(), NaiveVolScaled(), champ, DriverRidge(), ml],
                       origins=pd.date_range("2024-01-01", f"{ORIGIN}-01", freq="MS"), derive=derive, lags=lags, verbose=False)
@@ -94,47 +93,20 @@ def main(team_id: str = TEAM_ID, candidates: str = "v1"):
     print("\nLjung-Box (lag 1, origines non chevauchantes) : part des séries avec p < 0,05")
     print(lb.groupby(["model", "horizon"])["p_value"].apply(lambda p: (p < 0.05).mean()).round(2).to_string())
 
-    # Règle FIXÉE AVANT de voir les résultats (même règle que champion v1/v2) : le modèle ML remplace le champion
-    # seulement si sa perte quantile relative médiane est plus basse ET sa couverture médiane >= celle du champion - 0,02
+    # Règle ML vs champion : rapportée pour information, jamais appliquée. Le modèle soumis est fixé sur la fenêtre dev
+    # du run noté, et 2024-26 a déjà été regardé (pas un test vierge).
     decision = ml_replaces_champion(tab, champ.name, ml.name)
     pd.DataFrame([decision]).to_csv(out / f"champion_vs_{ml.name}{sfx}.csv", index=False)
-    print(f"\nRègle de remplacement : {decision['verdict']} ({decision['detail']})")
-    submitted = ml if decision["adopt"] else champ
-    if decision["adopt"]:
-        # le business lit les lignes « champion » : on y met le modèle retenu pour que tout suive automatiquement
-        fc.loc[fc.model == champ.name, "model"] = f"{champ.name}_signals"
-        fc.loc[fc.model == ml.name, "model"] = champ.name
+    print(f"\nRègle ML vs champion (pour information, non appliquée) : {decision['verdict']} ({decision['detail']})")
     fc.to_parquet(out / f"champion_holdout{sfx}.parquet")
 
-    print("3/3 CSV de soumission")
-    cat, _ = d.load_catalogs()
-    fc0 = run_backtest(panel, targets, [submitted], origins=[f"{ORIGIN}-01"], derive=derive, lags=lags, verbose=False)
-    runtime_sub = fc0.attrs["runtime_s"][submitted.name]
-    # le CSV ne contient que les 14 séries d'origine de Schneider + les 2 indices BOM
-    region = {s: ("EU" if s in ["S07", "S08", "S09", "S10", "S11"] else "WW") for s in d.SCHNEIDER_RM_TARGETS}
-    unit = {s: cat.loc[s, "unit"] for s in d.SCHNEIDER_RM_TARGETS}
-    ai = "claude-code; public data: FRED/IMF/BLS, Eurostat, NY Fed GSCPI"
-    name = ("lgbm_quantile (adopted by pre-registered rule)" if submitted is ml
-            else f"{opt['model']}_wf_signals_ridge+naive_vol")
-    if submitted is ml:
-        ai += "; lightgbm"
-    a = from_forecasts(fc0[fc0.series.isin(d.SCHNEIDER_RM_TARGETS)], ORIGIN, team_id, name, ai, region, unit)
-    b = from_forecasts(fc0[fc0.series.isin(BOM_IDS)], ORIGIN, team_id, name, ai, {s: "EU" for s in BOM_IDS},
-                       {s: f"index ({ORIGIN}=100)" for s in BOM_IDS}, target_type="bom_index")
-    sub = pd.concat([a, b], ignore_index=True)
-    problems = validate_submission(sub)
-    path = d.OUT / "testbench" / f"draft_forecast_{ORIGIN.replace('-', '')}_champion{sfx}.csv"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    sub.to_csv(path, index=False)
-    print("problèmes de format :", problems or "aucun", "->", path)
-
-    runtimes = {"screening": t_screen, **{f"holdout_{k}": v for k, v in runtime_holdout.items()},
-                f"submission_{submitted.name}": runtime_sub}
+    runtimes = {"screening": t_screen, **{f"holdout_{k}": v for k, v in runtime_holdout.items()}}
     fp = compute_footprint(runtimes)
     print(f"\nCalcul ({candidates}) — temps des modèles, hors chargement des données :")
     print(fp.to_string())
     print(f"Temps total de la commande : {time.perf_counter() - t_start:.0f} s")
-    return rel, sub
+    print("CSV de soumission : uv run python -m src.testbench.pipeline --submit (run noté)")
+    return rel
 
 
 if __name__ == "__main__":
