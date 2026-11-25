@@ -36,6 +36,8 @@ BENCH_XLSX = DATA / (
 )
 PRICE_XLSX = DATA / "RMU_IQI_EU_Price_Benchmark_2017-2026_Synthetic.xlsx"  # was DRM-locked; unlocked copy 18-Nov-2026
 DRM_XLSX = PRICE_XLSX  # backward-compatible alias
+BOM_XLSX = DATA / "RM_Prices_XHEC_Challenge_v1.xlsx"         # official BOM (Schneider, ~20 Nov), same as the test bench
+BOM_PREVIOUS_XLSX = DATA / "RM_Prices_XHEC_Challenge.xlsx"   # previous official version, kept for comparison only
 
 
 # --------------------------------------------------------------------------- #
@@ -72,8 +74,10 @@ def load_energy_wide() -> pd.DataFrame:
     return df.set_index("month")
 
 
-def load_bom() -> pd.DataFrame:
-    return pd.read_csv(CORE / "bom_materials.csv")
+def load_bom(path: Path = BOM_XLSX) -> pd.DataFrame:
+    """Official BOM (v1 workbook), the reference of the test bench and the champion. The data.zip CSV
+    (``CORE / "bom_materials.csv"``) is an older version and is no longer used."""
+    return pd.read_excel(path, sheet_name="BOM_Materials")
 
 
 def load_catalogs() -> dict[str, pd.DataFrame]:

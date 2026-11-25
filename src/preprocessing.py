@@ -498,9 +498,10 @@ def to_long(raw: pd.DataFrame, filled: pd.DataFrame, method: pd.DataFrame, catal
 # 6. Static tables
 # =========================================================================== #
 def bom_clean() -> pd.DataFrame:
-    """data.zip BOM, materials only, with the price series used in modelling and assumption flags."""
+    """Official BOM (v1 workbook), materials only, with the price series used in modelling, assumption flags and the
+    mass of the previous official version for comparison."""
     bom = dl.load_bom()
-    bom = bom[bom.plant_code.notna()].copy()  # drops the 3 'Total … / Implied …' rows
+    bom = bom[bom.plant_code.notna()].copy()  # drops the 'Total … / Implied …' rows
     implied = (bom.mass_kg / bom.share_pct).groupby(bom.product_ref).median()
     bom["implied_total_mass_kg"] = bom.product_ref.map(implied).round(1)
     masses = fe.bom_masses()
@@ -510,9 +511,10 @@ def bom_clean() -> pd.DataFrame:
     bom["model_series"] = bom.material_family.map(series)
     bom["mass_kg_model"] = bom.mass_kg
     m = bom.material_family.eq("Carbon steel (to confirm)")
-    bom.loc[m, "mass_kg_model"] = masses.loc["CRU_CR_DE", "RM6_NE_IQI_433520"]
+    if m.any():  # older BOM versions only; v1 labels RM6 fully
+        bom.loc[m, "mass_kg_model"] = masses.loc["CRU_CR_DE", "RM6_NE_IQI_433520"]
     bom["is_assumption"] = m
-    root = pd.read_excel(dl.DATA / "RM_Prices_XHEC_Challenge.xlsx", sheet_name="BOM_Materials")
+    root = dl.load_bom(dl.BOM_PREVIOUS_XLSX)
     root = root[root.plant_code.notna()]
     bom = bom.merge(root[["product_ref", "material_label_source", "mass_kg"]]
                     .rename(columns={"mass_kg": "mass_kg_root_xlsx"}), how="left",
