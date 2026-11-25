@@ -49,12 +49,12 @@ champion-v2: ## Champion v2 option (extended energy candidates), files suffixed 
 compare: ## Champion v1 vs v2 (pre-registered rule) + provided-series status table
 	uv run python -m src.checks.compare_champions && uv run python -m src.checks.provided_series_table
 
-TAG ?= backtest-freeze-v3
+TAG ?= backtest-freeze-v4
 
 graded: ## One-shot graded run 2022-26 (needs a clean tagged HEAD + passing canaries; refuses a tag already graded)
 	uv run python -m src.testbench.pipeline --graded
 
-submit: ## The submission CSV, from the graded run of TAG (default backtest-freeze-v3)
+submit: ## The submission CSV, from the graded run of TAG (default backtest-freeze-v4)
 	uv run python -m src.testbench.pipeline --submit --tag $(TAG)
 
 business: ## Business modules (pricing levers, TCO, suppliers...) + REPORT.md

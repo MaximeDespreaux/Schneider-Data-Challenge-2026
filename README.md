@@ -35,12 +35,31 @@ data (challenge panel + licensed steel + epoxy + public data)  →  causal panel
 ## 3. Main results (graded out-of-sample run, 2022-01 to 2026-09, scored once)
 
 The submitted model is `champion_wf2`. It was chosen on the development window (forecast targets 2010 to 2021) before
-any graded number was seen. The graded window was then scored once, from the tagged commit `backtest-freeze-v3`, after
-the leak canaries passed ([preregistration.md](docs/backtest/preregistration.md)). Walk-forward, with one forecast
-origin per month from 2022-01.
+any graded number was seen. The graded window was scored once from the tagged commit `backtest-freeze-v3`, after the
+leak canaries passed. Two bugs were then found and fixed (a regional steel price was not valued in EUR/t at past
+origins, and a meta-model step saw some inputs a month early). As written in
+[preregistration.md](docs/backtest/preregistration.md) before any new number existed, we re-ran the same window once
+from `backtest-freeze-v4` as a declared second look. v4 is our main result and the submitted CSV comes from it. v3
+stays reported below. Walk-forward, with one forecast origin per month from 2022-01.
 
 Pinball loss of P10/P50/P90 relative to the naive forecast ("the price stays the same", with volatility-scaled bands).
 Below 1 is better. Brackets give the 95% block-bootstrap interval. Submission mode, which mirrors the live ragged edge.
+
+| Material group | 3 months | 6 months | 9 months | P10–P90 coverage (target 0.80) |
+|---|---|---|---|---|
+| EU and US steel indices | **0.79** [0.65–0.94] | 0.86 [0.70–1.00] | 0.85 [0.77–0.97] | 0.90–0.95 |
+| Plastics | **0.83** [0.76–0.92] | 0.90 [0.80–1.01] | 1.00 [0.85–1.09] | 0.83–0.87 |
+| BOM cost indices (RM6, AirSeT) | **0.88** [0.78–0.98] | 0.94 [0.83–1.03] | 0.93 [0.81–1.01] | 0.75–0.80 |
+| Licensed steel prices (EUR/t) | **0.87** [0.78–0.98] | 0.95 [0.88–1.08] | 0.99 [0.92–1.22] | 0.83–0.86 |
+| Epoxy and electronics | 0.89 [0.77–0.98] | **0.83** [0.76–0.90] | 0.81 [0.76–0.85] | 0.83–0.87 |
+| Metals (copper, aluminium, nickel, zinc, iron ore) | 1.03 [0.99–1.08] | 1.02 [0.98–1.08] | 1.03 [0.96–1.09] | 0.84–0.91 |
+
+<details>
+<summary>First look (v3), kept for transparency</summary>
+
+Same window and model, before the two fixes. Only the BOM row differs from v4. Every other cell is identical to two
+decimals, and no verdict of the pre-registered rule changes. The submitted CSV moves by less than 0.01% (RM6 BOM index
+only).
 
 | Material group | 3 months | 6 months | 9 months | P10–P90 coverage (target 0.80) |
 |---|---|---|---|---|
@@ -50,6 +69,8 @@ Below 1 is better. Brackets give the 95% block-bootstrap interval. Submission mo
 | Licensed steel prices (EUR/t) | **0.87** [0.78–0.98] | 0.95 [0.88–1.08] | 0.99 [0.92–1.22] | 0.83–0.86 |
 | Epoxy and electronics | 0.89 [0.77–0.98] | **0.83** [0.76–0.90] | 0.81 [0.76–0.85] | 0.83–0.87 |
 | Metals (copper, aluminium, nickel, zinc, iron ore) | 1.03 [0.99–1.08] | 1.02 [0.98–1.08] | 1.03 [0.96–1.09] | 0.84–0.91 |
+
+</details>
 
 What this means:
 - We see large and consistent gains at 3 months. Their 95% intervals exclude "no gain" on every group except metals.
@@ -123,7 +144,8 @@ Measured on a laptop, CPU only (estimate: ~30 W, ~0.25 kgCO₂e/kWh EU mix):
 
 | Run | Model time | Estimate |
 |---|---|---|
-| `make graded` (14 models, 201 origins, both modes in parallel, run once) | 4,854 s (~81 min) | ~10 gCO₂e |
+| `make graded`, v4 (14 models, 201 origins, both modes in parallel) | 3,054 s (~51 min) | ~6 gCO₂e |
+| `make graded`, v3 (first look, same set-up) | 4,854 s (~81 min) | ~10 gCO₂e |
 | `make champion` (screening + 2024-26 check of 5 models) | ~130 s | ~0.3 gCO₂e |
 | `make business` (12 modules) | ~10–20 s | ~0.03 gCO₂e |
 | baseline backtest (6 models × 16 targets × 82 origins) | ~80 s | ~0.2 gCO₂e |
