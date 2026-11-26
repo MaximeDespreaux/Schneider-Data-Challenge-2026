@@ -95,3 +95,34 @@ def test_margin_table_spot_central_hits_target_and_energy_line_lowers_it():
     spot2 = t2[(t2.policy == "spot") & (t2.point == "central")].iloc[0]
     assert spot2.margin == pytest.approx(0.25 - 0.05)  # energy cost doubles: +5% of price
     assert set(t.policy) == set(sc.DEFAULT_POLICIES)
+
+
+def test_competitor_gaps_weights_group_changes_by_teardown_shares():
+    shares = pd.DataFrame({"brand": ["Schneider", "ABB", "Eaton"],
+                           "value_share_copper": [0.5, 0.9, 0.2], "value_share_carbon_steel": [0.5, 0.1, 0.8]})
+    gaps, ours = sc.competitor_gaps(shares, {"copper": 0.20, "carbon_steel": 0.0}, ["ABB", "Eaton", "Siemens"])
+    assert ours == pytest.approx(0.10)
+    assert gaps.set_index("brand").loc["ABB", "gap_pp"] == pytest.approx(8.0)       # 18% vs our 10%
+    assert gaps.set_index("brand").loc["Eaton", "gap_pp"] == pytest.approx(-6.0)    # 4% vs 10%
+    assert gaps.set_index("brand").loc["Competitor average", "change"] == pytest.approx(0.11)
+    assert "Siemens" not in set(gaps.brand)                                          # no teardown -> left out
+
+
+@pytest.mark.parametrize("delta,pt,gpts", [(100.0, 1.0, 0.0), (100.0, 0.5, 3.0), (900.0, 1.0, 5.0), (-50.0, 1.0, 2.0)])
+def test_apply_levers_matches_the_business_module(delta, pt, gpts):
+    from src.business import pricing_levers as pl
+    price, margin, floor = 4000.0, 0.15, 0.08
+    ctx = {"price": {"X": price}, "margin": {"X": margin}, "floor": {"X": floor},
+           "cost_base": {("X", "b"): 1000.0}, "index": {("X", 6): {"p50": 100 + delta / 10}},
+           "competitor": {6: {"pass_through": {"s": pt}}}, "quote": {("X", 6): {"indexation_recommended": False,
+                                                                                 "validity_days": 30, "buffer_eur": 0}},
+           "customer": {"customer_tiers": {"t": {"max_margin_giveup_pts": gpts}},
+                        "deal_size_eur": {"small": {"range": "< 250k", "extra_giveup_pts": 0}},
+                        "large_or_long_deals_require_indexation": False},
+           "default_strategy": "s", "default_basis": "b"}
+    ref = pl.recommend("X", 6, "p50", tier="t", deal_value_eur=100_000, ctx=ctx)
+    ref_pt = ref["pass_through"]  # recommend applies the competitor lever to RM6 only
+    out = sc.apply_levers(ref["delta_eur"], price, margin, floor, ref_pt, gpts)
+    assert out["increase_eur"] == pytest.approx(ref["increase_eur"])
+    assert out["margin_after"] == pytest.approx(ref["margin_after"])
+    assert out["floor_binding"] == ref["floor_binding"]

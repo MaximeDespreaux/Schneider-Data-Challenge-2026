@@ -149,6 +149,21 @@ def competitor_value_shares(td: pd.DataFrame, eur_per_kg: dict, cfg: dict) -> pd
     return pd.DataFrame(rows)
 
 
+def competitor_eur_per_kg(panel: pd.DataFrame, base: pd.Timestamp, cfg: dict) -> dict:
+    """EUR/kg of each priced group at the last value <= ``base`` (brass from copper and zinc, plastics assumed)."""
+    cl = cfg["competitor_lever"]
+    lv = {s: last_valid(panel[s], base) for s in ["D01", "D02", "L01", "EP01", "S05", "S06"]}
+    out = {}
+    for grp, ser in cl["priced_groups"].items():
+        if grp == "brass":
+            out[grp] = (cl["brass_mix"]["copper"] * lv["D01"] + cl["brass_mix"]["zinc"] * lv["S05"] / lv["S06"]) / 1000
+        elif grp == "plastics":
+            out[grp] = float(cl["plastics_eur_per_kg"])
+        else:
+            out[grp] = lv[ser] / 1000
+    return out
+
+
 def group_changes(fc: pd.DataFrame, cfg: dict, horizon: int, q: str = "p50") -> dict:
     from .forecasts import pct_change
 
@@ -254,17 +269,7 @@ def build_context(cfg: dict | None = None) -> dict:
     # competitor lever (RM6): EUR/kg at the last value <= origin
     panel = build_panel()
     base = origin_ts(cfg)
-    cl = cfg["competitor_lever"]
-    lv = {s: last_valid(panel[s], base) for s in ["D01", "D02", "L01", "EP01", "S05", "S06"]}
-    eur_per_kg = {}
-    for grp, ser in cl["priced_groups"].items():
-        if grp == "brass":
-            eur_per_kg[grp] = (cl["brass_mix"]["copper"] * lv["D01"] + cl["brass_mix"]["zinc"] * lv["S05"] / lv["S06"]) / 1000
-        elif grp == "plastics":
-            eur_per_kg[grp] = float(cl["plastics_eur_per_kg"])
-        else:
-            eur_per_kg[grp] = lv[ser] / 1000
-    shares = competitor_value_shares(d.load_competitor_teardowns(), eur_per_kg, cfg)
+    shares = competitor_value_shares(d.load_competitor_teardowns(), competitor_eur_per_kg(panel, base, cfg), cfg)
     realised = realised_group_changes(panel, cfg, base)
     comp = competitor_lever(shares, fc, cfg, a["quote_rules"]["competitor_lever"], cfg["horizons"], realised)
     band_q = cfg["competitor_lever"].get("band_scenario", "p90")

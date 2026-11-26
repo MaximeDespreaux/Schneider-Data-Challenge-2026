@@ -68,6 +68,14 @@ class Inputs:
     picks: pd.DataFrame      # dev-rule policy per product, material share, horizon
     cu_term: float           # LME copper 3M/cash log spread at the origin (0 if unknown)
     assumptions: dict
+    bcfg: dict               # config/business.yaml (competitor lever groups, electronics slider, TCO inputs)
+    prices: dict             # selling price per product, EUR (synthetic benchmark; AirSeT assumed if not given)
+    comp_shares: pd.DataFrame  # competitor teardown value shares per material group (pricing_levers)
+    tco: pd.DataFrame        # lifetime-cost Monte Carlo draws (tco.simulate, same seed as the business run)
+    suppliers: pd.DataFrame | None  # supplier emission estimates (business run output), None if not run yet
+    footprint: pd.DataFrame  # compute time and CO2 of our runs
+    biz: dict                # other business outputs, each None if not run yet: monthly product cost (price-review
+                             # monitor), pass-through lags, supplier validation
 
 
 def _naive_vol(y: pd.Series) -> pd.DataFrame:
@@ -93,7 +101,7 @@ def load(tag: str) -> Inputs:
     sub.loc[sub.series.isin(TARGET_IDS.values()), "last"] = 100.0  # BOM indices: origin = 100
     sub["source"] = f"{SUBMITTED} ({'computed here' if tag == FRESH else f'graded run {tag}'})"
     rows = [sub[["series", "horizon", "p10", "p50", "p90", "last", "source"]]]
-    need = (set(weights.series) | set(ENERGY)) - set(sub.series)
+    need = (set(weights.series) | set(ENERGY) | EXTRA_SERIES) - set(sub.series)
     for s in sorted(need):
         y = known[s].dropna()
         if len(y) >= 36:
@@ -106,8 +114,49 @@ def load(tag: str) -> Inputs:
     picks_path = d.OUT / "margin" / "policy_picks.csv"
     picks = pd.read_csv(picks_path) if picks_path.exists() else pd.DataFrame()
     term = known["X_CU_TERM"].dropna() if "X_CU_TERM" in known else pd.Series(dtype=float)
-    return Inputs(tag, panel, weights, fc, hist_p90, picks, float(term.iloc[-1]) if len(term) else 0.0,
-                  load_assumptions())
+
+    from src.business import tco
+    from src.business.config import load_business_config, selling_prices
+    from src.business.pricing_levers import competitor_eur_per_kg, competitor_value_shares
+    a, bcfg = load_assumptions(), load_business_config()
+    prices = selling_prices(a, bcfg)
+    shares = competitor_value_shares(d.load_competitor_teardowns(), competitor_eur_per_kg(panel, ORIGIN, bcfg), bcfg)
+    draws = tco.simulate(bcfg["tco"], prices["RM6"], int(bcfg["seed"]))
+    sup_path = d.OUT / "business" / "supplier_estimates.csv"
+    return Inputs(tag, panel, weights, fc, hist_p90, picks, float(term.iloc[-1]) if len(term) else 0.0, a, bcfg,
+                  prices, shares, draws, pd.read_csv(sup_path) if sup_path.exists() else None, _footprint(tag),
+                  _business_outputs())
+
+
+def _business_outputs() -> dict:
+    out = {}
+    for key, name in (("cost_monthly", "convergence_monthly.csv"), ("lags", "lag_table.csv"),
+                      ("sup_validation", "supplier_validation.csv")):
+        path = d.OUT / "business" / name
+        out[key] = pd.read_csv(path) if path.exists() else None
+    return out
+
+
+EXTRA_SERIES = {"EL01", "L01", "S05"}  # electronics slider; competitor lever groups (carbon steel L01, zinc for brass)
+
+
+def _footprint(tag: str) -> pd.DataFrame:
+    """Compute time and CO2 of our runs (laptop at ~30 W, EU mix ~0.25 kgCO2e/kWh, as in compute_footprint).
+    Graded run: wall-clock time from its manifests (both modes ran in parallel, so the longer one counts).
+    Business modules: the TOTAL row of the footprint file the run wrote."""
+    import json
+
+    from src.testbench.backtest import compute_footprint
+    rows = []
+    walls = [json.loads(p.read_text())["runtime_s"] for p in (GRADED / tag).glob("*/manifest.json")]
+    if walls:
+        rows.append((f"Graded backtest {tag} (both modes, in parallel)", max(walls)))
+    biz = d.OUT / "business" / "compute_footprint.csv"
+    if biz.exists():
+        rows.append(("Business modules (one run)", float(pd.read_csv(biz).set_index("model").at["TOTAL", "runtime_s"])))
+    fp = compute_footprint({label: s for label, s in rows}).drop(index="TOTAL", errors="ignore")
+    return pd.DataFrame({"Run": fp.index, "Minutes": fp["runtime_s"] / 60, "kWh": fp["kWh"],
+                         "gCO2e": fp["gCO2e"]}).reset_index(drop=True)
 
 
 def default_economics(inp: Inputs, product: str):
