@@ -471,7 +471,7 @@ with t4:
 with t_adv:
     st.caption("How much of the cost increase to put into the price of one deal: competitors first (RM6), then the "
                "client, never below the margin floor. Same rules as our pricing module.")
-    a1, a2, a3 = st.columns(3)
+    a1, a2, _ = st.columns(3)
     tier = a1.segmented_control("Client", list(cust_cfg["customer_tiers"]), default="standard", required=True,
                                 format_func=str.capitalize, key="adv_tier",
                                 help="\n".join(f"- **{k.capitalize()}**: {v['examples']}, up to "
@@ -479,13 +479,11 @@ with t_adv:
                                                for k, v in cust_cfg["customer_tiers"].items()))
     deal = a2.segmented_control("Order size", list(DEALS), default=150_000, required=True, key="adv_deal",
                                 format_func=lambda d: DEALS[d].capitalize())
-    strategy = a3.segmented_control("If competitors are hit harder", ["protect_margin", "gain_share"],
-                                    default=comp_cfg["strategy_when_competitors_hit_harder"], required=True,
-                                    key="adv_strategy",
-                                    format_func={"protect_margin": "Keep our margin", "gain_share": "Look cheaper"}.get)
-    adv = advice(tier, deal, strategy)
-    if adv["cg"] is not None:
-        cg = adv["cg"]
+    STANCE = {"protect_margin": "Keep our margin", "gain_share": "Look cheaper"}
+    if product == "RM6":
+        # both stances come from the same advice(); the chart and the gaps do not depend on the stance
+        keep, cheap = advice(tier, deal, "protect_margin"), advice(tier, deal, "gain_share")
+        cg = keep["cg"]
         cg["Who"] = np.where(cg.Brand.str.startswith("Schneider"), "Us", "Competitors")
         brand_order = cg.sort_values("change", ascending=False)["Brand"].tolist()
         cc = (alt.Chart(cg).mark_bar(cornerRadiusEnd=4, height=18).encode(
@@ -498,7 +496,62 @@ with t_adv:
                   x="change:Q", y=alt.Y("Brand:N", sort=brand_order), text=alt.Text("change:Q", format=".1%")))
         st.altair_chart(style(cc).properties(height=34 * len(cg)), width="stretch")
         st.caption("Each brand's material mix from the competitor teardowns, moved by the same scenario as ours.")
-    st.info(adv["verdict"], icon=":material/groups:")
+
+        # per-competitor readout: gap vs Schneider (teardown) in points, same values as the chart
+        comp = cg[cg.brand.notna() & (cg.brand != "Competitor average")].sort_values("change", ascending=False)
+        gap = dict(zip(comp.brand, comp.gap_pp))
+        harder = [b for b, g in gap.items() if g > 0]
+        less = [b for b, g in gap.items() if g < 0]
+
+        def pts(g: float) -> str:
+            return f"{g:+.1f}".replace("-", "−") + " pts"
+
+        def join_names(xs: list, conj: str = "and") -> str:
+            return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + f" {conj} " + xs[-1]
+
+        with st.container(border=True):
+            st.markdown("  \n".join(f":{'green' if g > 0 else 'red' if g < 0 else 'gray'}[**{b}** {pts(g)}]"
+                                    for b, g in gap.items()))
+            summary = f"Median competitor: {pts(float(np.median(list(gap.values()))))} vs us. "
+            summary += (f"{len(harder)} of {len(gap)} competitors are hit harder than us ({', '.join(harder)}). "
+                        if harder else f"None of the {len(gap)} competitors is hit harder than us. ")
+            if less:
+                summary += f"{join_names(less)} {'is' if len(less) == 1 else 'are'} hit less."
+            st.markdown(summary)
+            st.caption("Gap = competitor's material cost change minus Schneider's (teardown), bad case, in points. "
+                       "Green: hit harder than us. Red: hit less.")
+
+        # recommended stance, from the count above; X, Y, Z are the bad-case values of the two stances
+        k_bad, c_bad = keep["res"]["Bad case"], cheap["res"]["Bad case"]
+        # the pricing rule sets the pass-through from the AVERAGE gap; the buttons only differ when it is >= +2 pts
+        same = (f"Both buttons give the same price here, because on the average competitor our rule passes on "
+                f"{keep['pt']:.0%} of the increase (margin {pct(k_bad['margin_after'], False)}, floor {floor:.0%})."
+                if keep["pt"] == cheap["pt"] else None)
+        if len(harder) > len(gap) / 2:
+            rec_key = "protect_margin"
+            rec_msg = ("**Recommended: Keep our margin.** Most rivals' costs rise more than ours, so they'll have to "
+                       "raise prices too. " + (same or f"Pass on {keep['pt']:.0%}."))
+        elif len(less) > len(gap) / 2:
+            rec_key = "gain_share"
+            rec_msg = ("**Recommended: Look cheaper.** Most rivals' costs rise less than ours. " + (
+                same or f"Absorb part of the increase: this costs "
+                        f"{(k_bad['margin_after'] - c_bad['margin_after']) * 100:.1f} margin points (margin stays at "
+                        f"{pct(c_bad['margin_after'], False)}, floor {floor:.0%})."))
+        else:
+            rec_key = None
+            rec_msg = (f"**Mixed:** {join_names(harder)} {'is' if len(harder) == 1 else 'are'} hit harder, "
+                       f"{join_names(less)} {'is' if len(less) == 1 else 'are'} hit less. Pricing against "
+                       f"{join_names(less, 'or')}? Consider Look cheaper. Against the others: Keep our margin."
+                       if harder and less else "**Mixed:** competitors move like us.")
+        st.info(rec_msg, icon=":material/recommend:")
+        strategy = st.columns(3)[0].segmented_control(
+            "If competitors are hit harder", list(STANCE), default=comp_cfg["strategy_when_competitors_hit_harder"],
+            required=True, key="adv_strategy",
+            format_func=lambda k: STANCE[k] + (" (recommended)" if k == rec_key else ""))
+        adv = keep if strategy == "protect_margin" else cheap
+    else:
+        st.info("No teardown data for SF6-free rivals.", icon=":material/groups:")
+        adv = advice(tier, deal, adv_now["adv_strategy"])  # stance unused for AirSeT: no competitor pass-through
     gpts, res = adv["gpts"], adv["res"]
     b1, b2, b3 = st.columns(3)
     bad = res["Bad case"]
