@@ -45,3 +45,23 @@ def test_real_config_is_complete_and_every_claim_has_a_source():
     assert all(o["source"].startswith("http") and o["country"] in cfg["countries"] and o["industry"] in cfg["industries"]
                for o in cfg["overrides"])
     assert gb.strength(cfg, "BR", "price_only")[0] == "WEAK" and gb.strength(cfg, "SA_AE", "data_centres")[0] == "STRONG"
+
+
+def test_sf6_scenario_moves_tonnes_with_end_of_life_loss_and_cost_with_premium():
+    from src.business import tco
+    from src.business.config import load_business_config
+    draws = tco.simulate(load_business_config()["tco"], 1000.0, seed=1, n=200)
+    ours, high = gb.sf6_scenario(draws, 1000.0), gb.sf6_scenario(draws, 1000.0, eol_pct=40)
+    assert (high["sf6_lifetime_tco2e"] > ours["sf6_lifetime_tco2e"]).all()
+    assert abs(ours["sf6_lifetime_tco2e"] - draws["sf6_lifetime_tco2e"]).max() < 1e-9  # no override = same draws
+    a, b = gb.sf6_scenario(draws, 1000.0, premium=0.10), gb.sf6_scenario(draws, 1000.0, premium=0.20)
+    assert abs((b["diff"] - a["diff"]) - 100.0).max() < 1e-6  # +10 points of a 1000 EUR price
+
+
+def test_client_brief_has_only_config_links_and_no_internal_pricing():
+    import re
+    cfg = gb.load()
+    md = gb.client_brief(cfg, "US", "data_centres", {"breakeven": 0.16, "sf6_t": 3.0, "held_lo": 29, "held_hi": 79})
+    urls = set(re.findall(r"\]\((http[^)]+)\)", md))
+    assert urls and urls <= set(re.findall(r"https?://[^\s\"']+", gb.CONFIG.read_text(encoding="utf-8")))
+    assert "premium band" not in md.lower() and "schneider only" not in md.lower() and "margin" not in md.lower()

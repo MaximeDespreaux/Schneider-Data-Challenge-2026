@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from src.app import goal_b as gb
 from src.app import inputs as I
 from src.app import scenarios as sc
 from src.business.margin_replay import Economics
@@ -25,6 +26,7 @@ st.set_page_config(page_title="Quote risk simulator", page_icon="⚡", layout="w
 
 # Schneider Electric greens + neutrals. Chart pair validated for colour-blind readers (dataviz validator).
 GREEN, LIFE_GREEN, BLUE, RED, INK, MUTED, GRID = "#009530", "#3DCD58", "#42B4E6", "#DC0A0A", "#333333", "#626469", "#E6E8E6"
+ORANGE = "#E47F00"
 PRODUCT_LABEL = {"RM6": "RM6", "AirSeT": "RM AirSeT"}
 SCENARIOS = {  # label -> shock definition; "plant" = the product's plant power price (local config)
     "No shock": dict(kind="sigma", k=0.0),
@@ -47,15 +49,17 @@ RULES = {"spot": "Fixed price", "p50_model": "Fixed, on our median", "p90_model"
          "clause_10": "Index clause ±10%", "hedge_cu": "Copper bought forward",
          "hedge_cu_clause_5": "Copper forward + clause ±5%"}
 POINTS = ("favourable", "central", "adverse")
+DEALS = {150_000: "under 250k EUR", 600_000: "250k-1M EUR", 2_000_000: "over 1M EUR"}
 TOUR = [
     ("Welcome", "This tool shows what happens to the **margin of a fixed-price offer** if raw-material prices move "
                 "between the quote and the purchase. It takes 30 seconds to learn."),
     ("1 · Choose the offer", "Pick the **product** and **how many months** the price stays fixed."),
     ("2 · Choose a scenario", "Pick what might happen to prices, from **no shock** to a **worst-in-history** move."),
-    ("3 · Read the verdict", "The coloured box tells you if a fixed price is safe and, if not, the **cheapest quote "
-                             "rule** that keeps the margin above the floor."),
-    ("Go further", "The tabs show the cost outlook, every quote rule and each material. "
-                   "**Settings** (top-left arrow) hold the assumptions: margins, confidence level, which price moves."),
+    ("3 · Read the decision", "Four cards answer the pricing questions: **how to quote**, the **longest safe fixed "
+                              "price**, **how much to raise** the price, and whether to **reopen** it."),
+    ("Go further", "The tabs hold the evidence behind each decision, the **AirSeT** selling guide and "
+                   "**sustainability**. **Settings** (top-left arrow) hold the assumptions: margins, confidence level, "
+                   "which price moves."),
 ]
 
 
@@ -105,8 +109,8 @@ inp = load(tag)
 # ------------------------------------------------------------------------------------------------ header + steps 1, 2
 head, tour_btn = st.columns([6, 1], vertical_alignment="center")
 head.markdown(f"<h2 style='margin:0'><span style='color:{LIFE_GREEN}'>●</span> Quote risk simulator</h2>"
-              f"<span style='color:{MUTED}'>Price fixed in September 2026, materials bought later. "
-              "What happens to the margin?</span>", unsafe_allow_html=True)
+              f"<span style='color:{MUTED}'>Set the offer and a price scenario. Get the pricing decision that protects "
+              "the margin.</span>", unsafe_allow_html=True)
 if tour_btn.button("Quick tour", icon=":material/play_circle:", width="stretch"):
     st.session_state.tour_open, st.session_state.tour_i = True, 0
     st.rerun()
@@ -201,55 +205,131 @@ def bom(hh: int, shocked: bool = True):
 
 
 base, scen = bom(h, shocked=False), bom(h)
-cu_pts = band("D01", h) if "D01" in w.index else (1.0, 1.0, 1.0)
-en_pts = band(plant, h) if plant and (plant, h) in fc.index else (1.0, 1.0, 1.0)
-q0 = fc.loc[(bom_id, h)]
-tab = sc.margin_table(eco, h, dict(zip(POINTS, zip(scen, cu_pts))),
-                      {"p50": q0.p50 / 100, "p90": q0.p90 / 100, "hist_p90": inp.hist_p90.get((product, h), np.nan)},
-                      w_cu=float(w.loc["D01", "weight"]) * V / (V + elec) if "D01" in w.index else 0.0,
-                      cu_fwd_ratio=float(np.exp(inp.cu_term * h / 3)), energy_share=e_share,
-                      energy_ratio=dict(zip(POINTS, en_pts)))
+
+
+def margins(hh: int) -> pd.DataFrame:
+    """Margin of every quote rule at the three points (favourable, central, adverse), offer fixed for hh months."""
+    s_h = bom(hh)
+    cu_h = band("D01", hh) if "D01" in w.index else (1.0, 1.0, 1.0)
+    en_h = band(plant, hh) if plant and (plant, hh) in fc.index else (1.0, 1.0, 1.0)
+    q = fc.loc[(bom_id, hh)]
+    return sc.margin_table(eco, hh, dict(zip(POINTS, zip(s_h, cu_h))),
+                           {"p50": q.p50 / 100, "p90": q.p90 / 100, "hist_p90": inp.hist_p90.get((product, hh), np.nan)},
+                           w_cu=float(w.loc["D01", "weight"]) * V / (V + elec) if "D01" in w.index else 0.0,
+                           cu_fwd_ratio=float(np.exp(inp.cu_term * hh / 3)), energy_share=e_share,
+                           energy_ratio=dict(zip(POINTS, en_h)))
+
+
+def spot_bad(t: pd.DataFrame) -> float:
+    return float(t[(t.policy == "spot") & (t.point == "adverse")]["margin"].iloc[0])
+
+
+tab = margins(h)
 mt = tab.pivot_table(index="policy", columns="point", values="margin").reindex(list(RULES))
 rec = I.recommended_policy(inp, product, share, h)
 rec_name = RULES.get(rec[0], rec[0]) if rec else None
 spot = mt.loc["spot"]
-
-# ------------------------------------------------------------------------------------------------ step 3: verdict
-st.markdown("##### 3 · Result")
-k1, k2, k3, k4 = st.columns(4)
-k1.metric("Material cost, expected", pct(scen[1] - 1), f"{scen[1] - base[1]:+.1%} from the shock",
-          delta_color="inverse", border=True, help="Change vs September 2026, central case.")
-k2.metric("Material cost, bad case", pct(scen[2] - 1), f"{scen[2] - base[2]:+.1%} from the shock",
-          delta_color="inverse", border=True,
-          help=f"High end of the {level:.0%} range: a 1-in-{round(2 / (1 - level))} chance of being worse.")
-k3.metric("Margin at a fixed price", pct(spot["central"], False), f"{spot['central'] - margin0:+.1%} vs target",
-          border=True)
-k4.metric("Margin at a fixed price, bad case", pct(spot["adverse"], False),
-          f"{spot['adverse'] - floor:+.1%} vs floor ({floor:.0%})", border=True)
-
-if "Extreme" in scenario:
-    largest = max(abs(sc.worst_move(inp.panel[s], h, I.ORIGIN, up)) / sc.sigma(inp.panel[s], h, I.ORIGIN)
-                  for s in w.index)
-    st.info(f"Stress test only. The largest {h}-month move in history was {largest:.1f} sigma, not 10.",
-            icon=":material/science:")
-# safer rule here: the cheapest one (lowest price markup) that keeps the bad case above the floor, as in our backtest rule
+safe_fixed = 0  # longest offer (3, 6, 9 months) whose fixed price keeps the bad case above the floor
+for hh in I.HORIZONS:
+    if spot_bad(tab if hh == h else margins(hh)) < floor:
+        break
+    safe_fixed = hh
+# cheapest safe rule: the lowest price markup that keeps the bad case above the floor, as in our backtest rule
 mk = tab[tab.point == "central"].set_index("policy")["markup"].reindex(mt.index)
 safe = mt.index[mt["adverse"] >= floor]
 FRICTION = ["spot", "p50_model", "hedge_cu", "p90_hist", "p90_model", "clause_10", "hedge_cu_clause_5", "clause_5",
             "clause_3"]  # ties on markup: fewer price revisions first (backtest tie-break)
 order = pd.DataFrame({"mk": mk.round(4), "fr": [FRICTION.index(r) for r in mk.index]}, index=mk.index)
 best = order.loc[safe].sort_values(["mk", "fr"]).index[0] if len(safe) else mt["adverse"].idxmax()
+
+# price advice (Goal A levers): competitors first (RM6 only), then the client, never below the floor
+from src.business import pricing_levers as pl  # noqa: E402
+
+q_rules = inp.assumptions["quote_rules"]
+comp_cfg, cust_cfg = q_rules["competitor_lever"], q_rules["customer_lever"]
+trig = float(q_rules.get("indexation_trigger_pct", 5)) / 100
+price = float(inp.prices[product])
+cost_base = V + elec
+
+
+def advice(tier: str, deal: float, strategy: str) -> dict:
+    out = {"pt": 1.0, "cg": None, "gpts": pl.giveup_pts(tier, deal, cust_cfg),
+           "verdict": "The competitor check applies to RM6 only: AirSeT has no comparable teardowns."}
+    if product == "RM6":
+        grp_cfg = inp.bcfg["competitor_lever"]
+        hi = {s: band(s, h)[2] - 1 for s in ("D01", "D02", "L01", "EP01", "S11", "S05")}
+        mix = grp_cfg["brass_mix"]
+        chg = {"copper": hi["D01"], "carbon_steel": hi["L01"], "aluminium": hi["D02"], "epoxy": hi["EP01"],
+               "plastics": hi["S11"], "brass": mix["copper"] * hi["D01"] + mix["zinc"] * hi["S05"]}
+        gaps, ours = sc.competitor_gaps(inp.comp_shares, {g: chg[g] for g in grp_cfg["priced_groups"]},
+                                        comp_cfg["competitors"])
+        avg_gap = float(gaps.set_index("brand").at["Competitor average", "gap_pp"])
+        bnd = pl.band_for(avg_gap, comp_cfg["bands_pct_points"])
+        pt = pl.pass_through_for(bnd, strategy, comp_cfg)
+        out["pt"] = pt
+        out["verdict"] = {
+            "competitors_hit_harder": f"Competitors' costs rise {avg_gap:+.1f} points more than ours, so we can pass "
+                                      f"on {pt:.0%} of our increase and stay competitive.",
+            "similar": f"Competitors' costs move like ours ({avg_gap:+.1f} points), so we pass on {pt:.0%}.",
+            "we_hit_harder": f"Our costs rise {-avg_gap:.1f} points more than competitors', so we pass on only "
+                             f"{pt:.0%} to stay competitive."}[bnd]
+        cg = gaps.assign(Brand=gaps.brand.where(gaps.brand != "Competitor average", "Competitor avg."))
+        out["cg"] = pd.concat([cg, pd.DataFrame({"Brand": ["Schneider (teardown)"], "change": [ours]})],
+                              ignore_index=True)
+    out["res"] = {lab: sc.apply_levers(cost_base * (ratio - 1), price, margin0, floor, out["pt"], out["gpts"])
+                  for lab, ratio in (("Expected", scen[1]), ("Bad case", scen[2]))}
+    return out
+
+
+ADV_DEFAULT = {"adv_tier": "standard", "adv_deal": 150_000,
+               "adv_strategy": comp_cfg["strategy_when_competitors_hit_harder"]}
+adv_now = {k: st.session_state.get(k) or v for k, v in ADV_DEFAULT.items()}  # same values as the Price increase tab
+adv = advice(*adv_now.values())
+bad_adv = adv["res"]["Bad case"]
+
+
+# ------------------------------------------------------------------------------------------------ step 3: decision
+def card(col, label: str, value: str, note: str, tone: str = "ok"):
+    edge = {"ok": GREEN, "warn": ORANGE, "bad": RED}[tone]
+    col.markdown(f"<div style='border:1px solid {GRID};border-left:6px solid {edge};border-radius:8px;"
+                 f"padding:10px 14px;min-height:104px'><div style='color:{MUTED};font-size:.85rem'>{label}</div>"
+                 f"<div style='color:{INK};font-size:1.3rem;font-weight:700;line-height:1.35'>{value}</div>"
+                 f"<div style='color:{MUTED};font-size:.85rem'>{note}</div></div>", unsafe_allow_html=True)
+
+
+st.markdown("##### 3 · Decision for this offer")
+k1, k2, k3, k4 = st.columns(4)
+card(k1, "How to quote", RULES[best] + ("  ★" if rec and best == rec[0] else ""),
+     f"bad-case margin {pct(mt.loc[best, 'adverse'], False)}, floor {floor:.0%}",
+     "ok" if spot["adverse"] >= floor else "warn" if len(safe) else "bad")
+card(k2, "Longest safe fixed price", f"{safe_fixed} months" if safe_fixed else "Under 3 months",
+     "bad case stays above the floor", "ok" if safe_fixed >= h else "warn" if safe_fixed else "bad")
+card(k3, "Raise the price by", pct(bad_adv["increase_eur"] / price),
+     f"bad case; expected case {pct(adv['res']['Expected']['increase_eur'] / price)}",
+     "warn" if bad_adv["floor_binding"] else "ok")
+review = abs(scen[2] - 1) > trig
+card(k4, "Reopen the price", "Likely before delivery" if review else "Not expected",
+     f"bad-case cost {pct(scen[2] - 1)}, trigger ±{trig:.0%}", "warn" if review else "ok")
+
 if spot["adverse"] >= floor:
     st.success(f"**A fixed price holds.** Even in the bad case the margin stays at {pct(spot['adverse'], False)}, "
                f"above the {floor:.0%} floor.", icon=":material/check_circle:")
 elif len(safe):
-    st.warning(f"**A fixed price is risky here.** In the bad case the margin falls to {pct(spot['adverse'], False)}, "
-               f"below the {floor:.0%} floor. Cheapest safe rule: **{RULES[best]}**.", icon=":material/warning:")
+    st.warning(f"**A fixed price is risky here.** In the bad case the margin falls to {pct(spot['adverse'], False)}. "
+               f"Quote with **{RULES[best]}**, or fix the price for {safe_fixed} months at most."
+               if safe_fixed else f"**A fixed price is risky here.** In the bad case the margin falls to "
+               f"{pct(spot['adverse'], False)}. Quote with **{RULES[best]}**.", icon=":material/warning:")
 else:
     st.error(f"**No quote rule keeps the margin above the {floor:.0%} floor in this scenario.** "
              f"**{RULES[best]}** loses the least. Re-quote or shorten the offer.", icon=":material/error:")
-if rec_name:
-    st.caption(f"★ Default rule from our 2010-21 backtest for this offer: {rec_name}. Quote rules tab for all options.")
+if "Extreme" in scenario:
+    largest = max(abs(sc.worst_move(inp.panel[s], h, I.ORIGIN, up)) / sc.sigma(inp.panel[s], h, I.ORIGIN)
+                  for s in w.index)
+    st.info(f"Stress test only. The largest {h}-month move in history was {largest:.1f} sigma, not 10.",
+            icon=":material/science:")
+st.caption((f"★ Default rule from our 2010-21 backtest for this offer: {rec_name}. " if rec_name else "")
+           + f"Price increase for a {adv_now['adv_tier']} client and an order of {DEALS[adv_now['adv_deal']]} "
+             "(set them in the Price increase tab).")
 if e_share == 0 and scenario == "Plant power spike":
     st.caption("The spike reaches the margin through material prices only. Add the plant energy share in Settings "
                "to include the direct cost.")
@@ -263,12 +343,22 @@ def style(chart):
 
 
 t1, t2, t_adv, t3, t_b, t_s, t4 = st.tabs([
-    ":material/show_chart: Cost outlook", ":material/rule: Quote rules", ":material/sell: Price advice",
-    ":material/category: Materials", ":material/eco: AirSeT strategy", ":material/energy_savings_leaf: Sustainability",
-    ":material/help: How it works"])
+    ":material/show_chart: Cost outlook", ":material/rule: Quote rules", ":material/sell: Price increase",
+    ":material/category: Materials", ":material/eco: Sell AirSeT", ":material/energy_savings_leaf: Sustainability",
+    ":material/account_tree: Principle"])
 own_series = list(w.index) + [s for s in I.ENERGY if s in inp.panel and (s, h) in fc.index]
 
 with t1:
+    e1, e2, e3, e4 = st.columns(4)
+    e1.metric("Material cost, expected", pct(scen[1] - 1), f"{scen[1] - base[1]:+.1%} from the shock",
+              delta_color="inverse", border=True, help="Change vs September 2026, central case.")
+    e2.metric("Material cost, bad case", pct(scen[2] - 1), f"{scen[2] - base[2]:+.1%} from the shock",
+              delta_color="inverse", border=True,
+              help=f"High end of the {level:.0%} range: a 1-in-{round(2 / (1 - level))} chance of being worse.")
+    e3.metric("Margin at a fixed price", pct(spot["central"], False), f"{spot['central'] - margin0:+.1%} vs target",
+              border=True)
+    e4.metric("Margin at a fixed price, bad case", pct(spot["adverse"], False),
+              f"{spot['adverse'] - floor:+.1%} vs floor ({floor:.0%})", border=True)
     rows = [{"Months": 0, "lo": 100, "mid": 100, "hi": 100, "case": c} for c in ("Our forecast", "With the shock")]
     for hh in I.HORIZONS:
         for case, v in (("Our forecast", bom(hh, False)), ("With the shock", bom(hh))):
@@ -352,6 +442,20 @@ with t3:
                f"Source: {fc.loc[(pick, h), 'source']}.")
 
 with t4:
+    STEPS = [("1 · You set", ["The offer: product, months the price is fixed", "A price scenario",
+                              "The client: tier, order size, country, industry"]),
+             ("2 · We simulate", ["Our frozen forecast of every material and energy price, scored once on 2022-26",
+                                  "The shock, with the co-movement seen in past crises",
+                                  "10,000 lifetimes of AirSeT vs RM6"]),
+             ("3 · You see", ["The material cost range", "The margin under 9 quote rules", "Competitors' cost moves",
+                              "AirSeT's lifetime cost and the SF6 it avoids"]),
+             ("4 · You decide", ["How to quote, and for how long", "How much to raise the price", "When to reopen it",
+                                 "Where to push AirSeT, at what premium", "Which suppliers to ask for data first"])]
+    for col, (title, items) in zip(st.columns(4), STEPS):
+        with col.container(border=True, height=260):
+            st.markdown(f"**{title}**\n" + "\n".join(f"- {x}" for x in items))
+    st.caption("Same maths as our backtests. Nothing leaves this computer.")
+    st.markdown("##### Method")
     st.markdown(
         "- **Forecast.** Our submitted model, frozen and scored on 2022-26. Its range widens when markets are volatile.\n"
         "- **Shock.** One sigma is a typical move over the same number of months. *Worst in history* uses the "
@@ -365,44 +469,23 @@ with t4:
 
 # ------------------------------------------------------------------------------------------------ price advice (Goal A)
 with t_adv:
-    from src.business import pricing_levers as pl
-    q_rules = inp.assumptions["quote_rules"]
-    comp_cfg, cust_cfg = q_rules["competitor_lever"], q_rules["customer_lever"]
     st.caption("How much of the cost increase to put into the price of one deal: competitors first (RM6), then the "
                "client, never below the margin floor. Same rules as our pricing module.")
     a1, a2, a3 = st.columns(3)
     tier = a1.segmented_control("Client", list(cust_cfg["customer_tiers"]), default="standard", required=True,
-                                format_func=str.capitalize,
+                                format_func=str.capitalize, key="adv_tier",
                                 help="\n".join(f"- **{k.capitalize()}**: {v['examples']}, up to "
                                                f"{v['max_margin_giveup_pts']} margin points"
                                                for k, v in cust_cfg["customer_tiers"].items()))
-    deal = a2.segmented_control("Order size", [150_000, 600_000, 2_000_000], default=150_000, required=True,
-                                format_func={150_000: "Under 250k EUR", 600_000: "250k-1M EUR",
-                                             2_000_000: "Over 1M EUR"}.get)
+    deal = a2.segmented_control("Order size", list(DEALS), default=150_000, required=True, key="adv_deal",
+                                format_func=lambda d: DEALS[d].capitalize())
     strategy = a3.segmented_control("If competitors are hit harder", ["protect_margin", "gain_share"],
                                     default=comp_cfg["strategy_when_competitors_hit_harder"], required=True,
+                                    key="adv_strategy",
                                     format_func={"protect_margin": "Keep our margin", "gain_share": "Look cheaper"}.get)
-    price = float(inp.prices[product])
-    cost_base = V + elec
-    pt, verdict = 1.0, "The competitor check applies to RM6 only: AirSeT has no comparable teardowns."
-    if product == "RM6":
-        grp_cfg = inp.bcfg["competitor_lever"]
-        hi = {s: band(s, h)[2] - 1 for s in ("D01", "D02", "L01", "EP01", "S11", "S05")}
-        mix = grp_cfg["brass_mix"]
-        chg = {"copper": hi["D01"], "carbon_steel": hi["L01"], "aluminium": hi["D02"], "epoxy": hi["EP01"],
-               "plastics": hi["S11"], "brass": mix["copper"] * hi["D01"] + mix["zinc"] * hi["S05"]}
-        chg = {g: chg[g] for g in grp_cfg["priced_groups"]}
-        gaps, ours = sc.competitor_gaps(inp.comp_shares, chg, comp_cfg["competitors"])
-        avg_gap = float(gaps.set_index("brand").at["Competitor average", "gap_pp"])
-        bnd = pl.band_for(avg_gap, comp_cfg["bands_pct_points"])
-        pt = pl.pass_through_for(bnd, strategy, comp_cfg)
-        verdict = {"competitors_hit_harder": f"Competitors' costs rise {avg_gap:+.1f} points more than ours, so we can "
-                                             f"pass on {pt:.0%} of our increase and stay competitive.",
-                   "similar": f"Competitors' costs move like ours ({avg_gap:+.1f} points), so we pass on {pt:.0%}.",
-                   "we_hit_harder": f"Our costs rise {-avg_gap:.1f} points more than competitors', so we pass on only "
-                                    f"{pt:.0%} to stay competitive."}[bnd]
-        cg = gaps.assign(Brand=gaps.brand.where(gaps.brand != "Competitor average", "Competitor avg."))
-        cg = pd.concat([cg, pd.DataFrame({"Brand": ["Schneider (teardown)"], "change": [ours]})], ignore_index=True)
+    adv = advice(tier, deal, strategy)
+    if adv["cg"] is not None:
+        cg = adv["cg"]
         cg["Who"] = np.where(cg.Brand.str.startswith("Schneider"), "Us", "Competitors")
         brand_order = cg.sort_values("change", ascending=False)["Brand"].tolist()
         cc = (alt.Chart(cg).mark_bar(cornerRadiusEnd=4, height=18).encode(
@@ -415,17 +498,15 @@ with t_adv:
                   x="change:Q", y=alt.Y("Brand:N", sort=brand_order), text=alt.Text("change:Q", format=".1%")))
         st.altair_chart(style(cc).properties(height=34 * len(cg)), width="stretch")
         st.caption("Each brand's material mix from the competitor teardowns, moved by the same scenario as ours.")
-    st.info(verdict, icon=":material/groups:")
-    gpts = pl.giveup_pts(tier, deal, cust_cfg)
-    res = {lab: sc.apply_levers(cost_base * (ratio - 1), price, margin0, floor, pt, gpts)
-           for lab, ratio in (("Expected", scen[1]), ("Bad case", scen[2]))}
+    st.info(adv["verdict"], icon=":material/groups:")
+    gpts, res = adv["gpts"], adv["res"]
     b1, b2, b3 = st.columns(3)
     bad = res["Bad case"]
     b1.metric("Raise the price by (bad case)", pct(bad["increase_eur"] / price),
               f"expected case {pct(res['Expected']['increase_eur'] / price)}", delta_color="off", delta_arrow="off", border=True)
     b2.metric("Margin after the increase", pct(bad["margin_after"], False), f"floor {floor:.0%}", delta_color="off", delta_arrow="off",
               border=True)
-    b3.metric("Margin points given to the client", f"{gpts:g}", f"{tier} client, order {deal:,.0f} EUR",
+    b3.metric("Margin points given to the client", f"{gpts:g}", f"{tier} client, order {DEALS[deal]}",
               delta_color="off", delta_arrow="off", border=True)
     if bad["floor_binding"]:
         st.warning("The margin floor binds: the price goes up enough to keep the floor, whatever the levers say.",
@@ -435,7 +516,6 @@ with t_adv:
         st.caption(f"Selling price {price:,.0f} EUR (synthetic benchmark{assumed}); "
                    f"cost increase in the bad case {cost_base * (scen[2] - 1):,.0f} EUR per unit.")
     st.markdown("##### Price-review trigger")
-    trig = float(inp.assumptions["quote_rules"].get("indexation_trigger_pct", 5)) / 100
     cm = inp.biz.get("cost_monthly")
     col = f"{product}_cost_eur"
     if cm is None or col not in cm:
@@ -465,7 +545,6 @@ with t_adv:
 
 # ------------------------------------------------------------------------------------------------ AirSeT strategy (Goal B)
 with t_b:
-    from src.app import goal_b as gb
     gcfg = gb.load()
     st.caption(f"Markets with no SF6 ban: why a client should choose AirSeT, and what Schneider should charge. "
                f"Market facts as of {gcfg['as_of']}, each with its source.")
@@ -476,9 +555,9 @@ with t_b:
     C, IND = gcfg["countries"][country], gcfg["industries"][industry]
     badge, score = gb.strength(gcfg, country, industry)
     {"STRONG": st.success, "MEDIUM": st.warning, "WEAK": st.error}[badge](
-        f"**{C['label']} · {IND['label']}: {badge} case** (score {score} of 5: reporting pull, SF6 rules momentum, "
-        f"client's climate focus)", icon={"STRONG": ":material/trending_up:", "MEDIUM": ":material/trending_flat:",
+        f"**{C['label']} · {IND['label']}: {badge} case.** {gcfg['actions'][badge]}", icon={"STRONG": ":material/trending_up:", "MEDIUM": ":material/trending_flat:",
                                          "WEAK": ":material/trending_down:"}[badge])
+    st.caption(f"{C['selling_tip']} Score {score} of 5 (reporting pull, SF6 rules momentum, client's climate focus).")
 
     be0 = inp.tco.loc[inp.tco["carbon_price_eur_t"] == 0, "breakeven_premium"]  # no carbon price in these markets
     d0 = inp.tco.loc[inp.tco["carbon_price_eur_t"] == 0, "diff"]
@@ -512,19 +591,26 @@ with t_b:
         with st.expander("SF6 rules spreading elsewhere (upside only, no date assumed)"):
             st.markdown("\n".join(f"- {link(r['text'], r['source'])}" for r in gcfg["rules_spreading"]))
     with right:
+        eol_opts = gcfg["eol_scenarios"]["options"]
+        eol_key = st.segmented_control("Gas lost when the RM6 is scrapped", list(eol_opts), default="ours",
+                                       required=True, format_func=lambda k: eol_opts[k]["label"],
+                                       help="Fraunhofer IEE study of medium-voltage switchgear: 1.5% with best "
+                                            "practice, up to 40% where recovery is not enforced, best guess 10%.")
+        tco_e = gb.sf6_scenario(inp.tco, float(inp.prices["RM6"]), eol_opts[eol_key].get("pct"))
         st.metric("Lifetime break-even premium", pct(float(be0.median()), False),
                   f"range {be0.quantile(.1):.0%}-{be0.quantile(.9):.0%}, no carbon price", delta_color="off", delta_arrow="off",
                   border=True, help="Below this premium over RM6, AirSeT pays for itself through lower maintenance "
-                                    "over 30-40 years (10,000 simulated lifetimes, our model).")
-        st.metric("SF6 avoided per unit", f"{inp.tco['sf6_lifetime_tco2e'].median():.1f} t CO₂e",
+                                    "over 30-40 years (simulated lifetimes with no carbon price, our model).")
+        st.metric("SF6 avoided per unit", f"{tco_e['sf6_lifetime_tco2e'].median():.1f} t CO₂e",
                   f"gas held: {(inp.tco.sf6_charge_kg * inp.tco.gwp_sf6).min() / 1000:.0f}-"
                   f"{(inp.tco.sf6_charge_kg * inp.tco.gwp_sf6).max() / 1000:.0f} t CO₂e", delta_color="off", delta_arrow="off",
                   border=True, help="Leaks and end-of-life losses over the unit's life (our model); 'gas held' is the "
                                     "total if all of it escaped.")
+        st.caption(f"End-of-life losses: [Fraunhofer IEE]({gcfg['eol_scenarios']['source']}).")
         if industry != "price_only":
             st.caption(conv)
 
-    st.markdown("##### Schneider only: what to charge")
+    st.markdown("##### What to charge (Schneider only, not for the client)")
     lo_b, hi_b = gb.premium_band(gcfg, country, industry)
     prem = st.slider("AirSeT price premium over RM6", 0, 30, int(round((lo_b + hi_b) / 2)), 1, format="%d%%") / 100
     floor_p, ceil_p = gap_h * share, float(be0.median())
@@ -556,10 +642,26 @@ with t_b:
           .mark_text(dy=-28, fontSize=12, color=MUTED).encode(x="x:Q", text="t:N"))
     st.altair_chart(style(wc).properties(height=110), width="stretch")
     st.caption(f"Green: the profitable window. Blue: suggested band for this client. Line: your premium. "
-               f"Contract: {C['contract_note']}")
+               f"Contract: {C['contract_note']}" + (f" {C['premium_note']}" if C.get("premium_note") else ""))
+    if show_eur:
+        at_p = gb.sf6_scenario(inp.tco[inp.tco["carbon_price_eur_t"] == 0], float(inp.prices["RM6"]),
+                               eol_opts[eol_key].get("pct"), prem)
+        per_t = float(at_p["diff"].median() / at_p["sf6_lifetime_tco2e"].median())
+        st.caption(f"At +{prem:.0%} the client pays {per_t:,.0f} EUR per tonne of CO₂e avoided over the life "
+                   f"(median, local screen only)." if per_t > 0 else
+                   f"At +{prem:.0%} the client saves money and avoids the SF6 (median {-per_t:,.0f} EUR per tonne).")
+    with st.expander("What not to claim"):
+        st.markdown("\n".join(f"- {link(d['text'], d['source'])}" for d in gcfg["do_not_claim"]))
     with st.expander("Caveats"):
         st.markdown("\n".join(f"- {c}" for c in gcfg["caveats"])
                     + "\n- Costed on RM6 → RM AirSeT; we had no SM6 / SM AirSeT cost data, the same logic applies.")
+    held_t = inp.tco.sf6_charge_kg * inp.tco.gwp_sf6 / 1000
+    brief = gb.client_brief(gcfg, country, industry, {
+        "breakeven": float(be0.median()), "sf6_t": float(tco_e["sf6_lifetime_tco2e"].median()),
+        "held_lo": float(held_t.min()), "held_hi": float(held_t.max())})
+    st.download_button("Download the client brief", brief, file_name=f"airset_brief_{country}_{industry}.md",
+                       mime="text/markdown", icon=":material/download:",
+                       help="Pitch, our model numbers and the local context, with sources. No Schneider pricing.")
 
 # ------------------------------------------------------------------------------------------------ sustainability
 with t_s:
@@ -572,8 +674,9 @@ with t_s:
     s2.metric("Emitted over its life", f"{sf6.median():.1f} t CO₂e", f"range {sf6.quantile(.1):.1f}-"
               f"{sf6.quantile(.9):.1f}, leaks and end of life", delta_color="off", delta_arrow="off", border=True)
     s3.metric("RM AirSeT", "0 t CO₂e", "no SF6 inside", delta_color="off", delta_arrow="off", border=True)
-    st.caption("These emissions sit in the client's own direct emissions (Scope 1), because the client owns the "
-               "switchgear. End-of-life losses may be higher where gas recovery is not enforced.")
+    fr = gb.sf6_scenario(inp.tco, float(inp.prices["RM6"]), 10)["sf6_lifetime_tco2e"].median()
+    st.caption(f"These emissions sit in the client's own direct emissions (Scope 1), because the client owns the "
+               f"switchgear. With Fraunhofer's 10% end-of-life loss, one RM6 emits about {fr:.1f} t CO₂e.")
 
     st.markdown("##### Supplier emissions (estimates)")
     if inp.suppliers is None:
@@ -585,6 +688,8 @@ with t_s:
         su = inp.suppliers.sort_values("priority_rank").reset_index(drop=True)
         su["Supplier"] = su["name"] if names_ok else [f"Supplier {i}" for i in range(1, len(su) + 1)]
         order = su["Supplier"].tolist()
+        st.success(f"**Ask first:** {', '.join(order[:3])}. They have the largest estimated emissions (Scope 1, 2 and 3).",
+                   icon=":material/person_search:")
         conf_colors = alt.Scale(domain=["high", "medium", "low"], range=[GREEN, BLUE, "#9FA0A4"])
         base_c = alt.Chart(su).encode(y=alt.Y("Supplier:N", sort=order, title=None, axis=alt.Axis(labelOverlap=False)))
         whisk = (base_c.mark_rule(strokeWidth=2, color=MUTED).encode(
