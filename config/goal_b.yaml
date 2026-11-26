@@ -5,6 +5,23 @@ as_of: "2026-11-23"
 
 strength_rule: "score = country.disclosure_score + country.sf6_momentum + industry.esg_sensitivity; STRONG >= 4, MEDIUM 2-3, WEAK <= 1; price-only buyers capped at MEDIUM"
 
+actions:   # what the salesperson does, by strength level
+  STRONG: "Lead with AirSeT and price it at the top of the band."
+  MEDIUM: "Offer AirSeT next to RM6 and let lifetime cost decide."
+  WEAK: "Do not over-push. Quote RM6 with an index clause and mention AirSeT as the option."
+
+eol_scenarios:   # share of the SF6 charge lost when the unit is scrapped
+  source: "https://www.iee.fraunhofer.de/content/dam/iee/energiesystemtechnik/de/Dokumente/Projekte/f-gas-free/F-gas-free-study-summary-final.pdf"
+  options:
+    ours: {label: "Ours (1-5%)"}
+    fraunhofer: {label: "Fraunhofer (10%)", pct: 10}
+    no_recovery: {label: "No recovery (40%)", pct: 40}
+
+do_not_claim:   # negative findings, so sales does not overclaim
+  - {text: "Green finance does not require SF6-free: the Climate Bonds grid criteria have no SF6-free rule. Say it strengthens the green-financing case.", source: "https://www.climatebonds.net/node/187526"}
+  - {text: "Green-building ratings do not reward SF6-free switchgear: LEED's refrigerant credits cover cooling equipment only.", source: "https://leeduser.buildinggreen.com/credit/NC-v5/EAp5"}
+  - {text: "Competitors also sell SF6-free switchgear. Our edge is pure air, not being SF6-free.", source: "https://www.abb.com/global/en/areas/electrification/medium-voltage/switchgear/gas-insulated/safering-safeplus"}
+
 rules_spreading:
   - {text: "California phases out new SF6 equipment (since 2025)", source: "https://epa.gov/eps-partnership/state-and-regional-regulations-related-sf6-emissions-electric-transmission-and"}
   - {text: "New York voltage-based phase-out from 2027", source: "https://epa.gov/eps-partnership/state-and-regional-regulations-related-sf6-emissions-electric-transmission-and"}
@@ -27,6 +44,7 @@ caveats:
 countries:
   US:
     label: "United States (outside CA, NY)"
+    selling_tip: "A national client with sites in California or New York already buys SF6-free there: offer one standard for every site."
     disclosure_score: 2
     sf6_momentum: 1
     regulation_outlook: "No federal ban; EPA reporting (Subpart DD). California phase-out since 2025, New York from 2027, Massachusetts 1% leak cap."
@@ -38,6 +56,7 @@ countries:
     contract_note: "USD pricing; index the metal part to LME."
   CN:
     label: "China"
+    selling_tip: "Price-sensitive, strong local makers: target export manufacturers, multinationals and data-centre operators."
     disclosure_score: 1
     sf6_momentum: 1
     regulation_outlook: "No ban; carbon neutrality by 2060; State Grid energised an SF6-free 550 kV substation (May 2026)."
@@ -48,6 +67,7 @@ countries:
     contract_note: "CNY or USD with an FX clause on the metal part."
   IN:
     label: "India"
+    selling_tip: "Fast-growing data-centre market, and Schneider already has utility references to point to."
     disclosure_score: 1
     sf6_momentum: 1
     regulation_outlook: "No ban; the carbon market covers 9 industrial sectors, not power."
@@ -59,6 +79,7 @@ countries:
     contract_note: "Index the metal part to LME in USD x INR rate at delivery."
   BR:
     label: "Brazil"
+    selling_tip: "The hardest market: lead with maintenance, safety, the group standards of European-owned utilities and the coming carbon market."
     disclosure_score: 0
     sf6_momentum: 0
     regulation_outlook: "No ban; the coming cap-and-trade system (SBCE) covers SF6, phasing in."
@@ -70,6 +91,8 @@ countries:
     contract_note: "Index the metal part to LME in USD x BRL rate; short validity."
   SA_AE:
     label: "Saudi Arabia / UAE"
+    selling_tip: "Utilities are choosing their SF6-free specification now, and a local rival is already in: move early."
+    premium_note: "UAE: the top of the band holds for every industry, because every entity must report its emissions."
     disclosure_score: 2
     sf6_momentum: 1
     regulation_outlook: "No ban; net zero 2060 (Saudi Arabia) and 2050 (UAE); the Saudi utility SEC is piloting SF6-free equipment."
@@ -81,6 +104,7 @@ countries:
     contract_note: "Currencies pegged to the USD: LME USD indexation is simple."
   AU:
     label: "Australia"
+    selling_tip: "Mining and data centres are large, publicly ranked emitters: every tonne shows."
     disclosure_score: 2
     sf6_momentum: 1
     regulation_outlook: "No ban, but SF6 is regulated as a synthetic greenhouse gas (A$450k fine in 2025)."
@@ -183,3 +207,14 @@ overrides:   # country x industry notes, shown first in the client pitch when th
   - {country: AU, industry: utilities, note: "Ausgrid and SA Power Networks already use Schneider SF6-free switchgear.", source: "https://se.com/au/en/about-us/newsroom/news/press-releases/ausgrid-partners-with-schneider-electric-to-decarbonise-grid-671efe8381047b575404bbd9"}
   - {country: AU, industry: mining, note: "Fortescue targets net-zero Scope 1 and 2 at its Australian iron ore by 2030.", source: "https://www.mining-technology.com/?p=679078"}
   - {country: AU, industry: data_centres, note: "Data-centre providers' emissions are publicly ranked in Australia.", source: "https://innovationaus.com/?p=62896"}
+  - {country: AU, industry: renewables, note: "South Australia targets 100% net renewables by 2027, and ElectraNet chose SF6-free transmission switchgear.", source: "https://www.hitachienergy.com/content/news/en/features/2026/03/hitachi-energy-and-electranet-take-a-major-step-toward-a-more-sustainable-transmission-network"}
+  - {country: AU, industry: industry_multinationals, note: "Mandatory climate reporting reaches more companies each year until 2027.", source: "https://treasury.gov.au/policy-topics/banking-and-finance/sustainable-finance/climate-financial-reporting-guidance"}
+  - {country: SA_AE, industry: data_centres, note: "UAE operators must report their Scope 1, and large AI campuses are planned in NEOM.", source: "https://www.pwc.com/m1/en/services/assurance/manage-risk-in-business/uae-climate-change-law.html"}
+  - {country: SA_AE, industry: renewables, note: "SEC's first SF6-free GIS substation (TBEA) collects wind power in northern Saudi Arabia.", source: "https://www.tradearabia.com/News/330986/TBEA-wins-380_132kV-GIS-substation-project-in-Saudi-Arabia/CONS"}
+  - {country: SA_AE, industry: industry_multinationals, note: "In the UAE every entity, of any size, reports its emissions.", source: "https://www.pwc.com/m1/en/services/assurance/manage-risk-in-business/uae-climate-change-law.html"}
+  - {country: SA_AE, industry: utilities, note: "Dubai's utility DEWA ties its substation programme to the UAE's net zero 2050 strategy.", source: "https://mediaoffice.ae/en/news/2025/may/11-05/saeed-mohammed-al-tayer-inspects-state-of-the-art-13211-kv-digital-substation"}
+  - {country: BR, industry: oil_gas, note: "Petrobras signed the COP28 oil and gas charter: net zero on Scope 1 and 2 by 2050.", source: "https://www.spglobal.com/energy/en/news-research/latest-news/energy-transition/120223-cop28-fifty-oil-and-gas-companies-sign-net-zero-methane-pledges"}
+  - {country: BR, industry: renewables, note: "European-owned groups finance grid upgrades with green loans (Neoenergia, EIB, Oct 2026).", source: "https://www.iberdrola.com/documents/20125/6296487/Neoenergia+and+EIB+sign+BRL+857+million+green+loan.pdf"}
+  - {country: US, industry: industry_multinationals, note: "California's SB 253 covers the whole group's Scope 1, wherever the switchgear sits.", source: "https://ww2.arb.ca.gov/news/carb-approves-climate-transparency-regulation-entities-doing-business-california/printable/print"}
+  - {country: CN, industry: industry_multinationals, note: "Export manufacturers face their customers' Scope 3 requests.", source: "https://assets.kpmg.com/content/dam/kpmg/cn/pdf/en/2024/04/china-stock-exchanges-finalised-mandatory-sustainability-reporting-requirements-for-larger-listed-entities.pdf"}
+  - {country: IN, industry: industry_multinationals, note: "Value-chain disclosure starts for the top 250 listed companies from FY2025-26.", source: "https://assets.kpmg.com/content/dam/kpmgsites/in/pdf/2026/02/chapter-1-emerging-trends-in-brsr-reporting-by-listed-companies.pdf.coredownload.pdf"}

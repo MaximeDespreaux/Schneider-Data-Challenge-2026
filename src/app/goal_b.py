@@ -35,3 +35,41 @@ def premium_band(cfg: dict, country: str, industry: str) -> tuple[float, float]:
 
 def overrides(cfg: dict, country: str, industry: str) -> list[dict]:
     return [o for o in cfg.get("overrides", []) if o["country"] == country and o["industry"] == industry]
+
+
+def sf6_scenario(draws, capex: float, eol_pct: float | None = None, premium: float | None = None):
+    """Re-run the lifetime-cost draws with a fixed end-of-life gas loss (%) and/or a fixed AirSeT premium."""
+    import numpy as np
+    import pandas as pd
+
+    from src.business import tco
+    x = {k: draws[k].to_numpy(dtype=float) for k in tco.INPUTS}
+    if eol_pct is not None:
+        x["eol_loss_pct"] = np.full(len(draws), float(eol_pct))
+    if premium is not None:
+        x["airset_premium_pct"] = np.full(len(draws), float(premium))
+    return pd.DataFrame(tco.compute(x, capex), index=draws.index)
+
+
+def client_brief(cfg: dict, country: str, industry: str, numbers: dict) -> str:
+    """Markdown brief for the client: pitch, model numbers, local context, sources. No Schneider pricing."""
+    c, i = cfg["countries"][country], cfg["industries"][industry]
+
+    def link(t: str, u: str) -> str:
+        return f"{t} ([source]({u}))"
+
+    pitch = [link(o["note"], o["source"]) for o in overrides(cfg, country, industry)] + list(i["pitch"])
+    why = ([c["regulation_outlook"], link(c["disclosure"]["text"], c["disclosure"]["source"])]
+           + [link(p["text"], p["source"]) for p in c["local_proof"]]
+           + [cfg["pfas_point"]["text"] + " " + " ".join(f"([source]({u}))" for u in cfg["pfas_point"]["sources"])])
+    nums = [f"AirSeT pays for itself through lower maintenance below a {numbers['breakeven']:.0%} price premium "
+            f"over RM6, with no carbon price (our model, simulated 30-40 year lifetimes).",
+            f"One RM6 emits about {numbers['sf6_t']:.1f} t CO2e of SF6 over its life and holds "
+            f"{numbers['held_lo']:.0f}-{numbers['held_hi']:.0f} t CO2e of gas. AirSeT holds none (our model).",
+            "SF6 leaks count in the owner's own direct emissions (Scope 1)."]
+    out = [f"# RM AirSeT for {i['label'].lower()} in {c['label']}", "", "## Why AirSeT"]
+    out += [f"- {p}" for p in pitch] + ["", "## The numbers"] + [f"- {n}" for n in nums]
+    out += ["", "## Why now, here"] + [f"- {w}" for w in why]
+    out += ["", "## SF6 rules spreading elsewhere"] + [f"- {link(r['text'], r['source'])}" for r in cfg["rules_spreading"]]
+    out += ["", f"_Market facts as of {cfg['as_of']}. Regulation is an upside only, with no date assumed._", ""]
+    return "\n".join(out)
