@@ -1,0 +1,185 @@
+# Goal B (AirSeT in markets with no SF6 ban): public, sourced content for the app's AirSeT strategy tab.
+# From the team's airset_upsell_brief.md (as of 2026-11-23). Model numbers are NOT stored here: the app computes them
+# live from the local outputs (licensed-derived values never go in tracked files).
+as_of: "2026-11-23"
+
+strength_rule: "score = country.disclosure_score + country.sf6_momentum + industry.esg_sensitivity; STRONG >= 4, MEDIUM 2-3, WEAK <= 1; price-only buyers capped at MEDIUM"
+
+rules_spreading:
+  - {text: "California phases out new SF6 equipment (since 2025)", source: "https://epa.gov/eps-partnership/state-and-regional-regulations-related-sf6-emissions-electric-transmission-and"}
+  - {text: "New York voltage-based phase-out from 2027", source: "https://epa.gov/eps-partnership/state-and-regional-regulations-related-sf6-emissions-electric-transmission-and"}
+  - {text: "EU: no F-gas in new MV switchgear up to 24 kV from 2026", source: "https://www.abb.com/global/en/areas/electrification/services/sf6-services-program"}
+  - {text: "UK government study on a ban timeline (Oct 2026)", source: "https://www.gov.uk/government/publications/pathways-to-sf6-free-distribution-networks"}
+
+pfas_point:
+  text: "Some rival SF6-free products use fluorinated gas mixtures that the EU is restricting; AirSeT uses pure air."
+  sources:
+    - "https://data.consilium.europa.eu/doc/document/ST-10693-2026-REV-1/en/pdf"
+    - "https://www.hitachienergy.com/content/news/en/features/2026/07/leading-the-charge-state-grid-corporation-of-china-decarbonization-journey"
+
+caveats:
+  - "Lead with the break-even premium; the EUR lifetime difference depends on our assumed 10-30% premium."
+  - "The AirSeT selling price used in Goal A (RM6 + 20%) is a placeholder, above the break-even premium."
+  - "SF6 handling costs are based on EU/UK practice; they may be lower here, but end-of-life gas losses are likely higher."
+  - "Regulation is shown as an upside only, with no probability or date."
+  - "Premium bands are our proposal, not Schneider data."
+
+countries:
+  US:
+    label: "United States (outside CA, NY)"
+    disclosure_score: 2
+    sf6_momentum: 1
+    regulation_outlook: "No federal ban; EPA reporting (Subpart DD). California phase-out since 2025, New York from 2027, Massachusetts 1% leak cap."
+    disclosure: {text: "SB 253: Scope 1 and 2 reports due 10 Nov 2026, Scope 3 from 2027 (over $1bn revenue, doing business in California).", source: "https://dart.deloitte.com/USDART/home/news/all-news/2026/jun/carb-proposed-deferral-2026-ghg-emissions-reporting-deadline"}
+    local_proof:
+      - {text: "Southern California Edison deploys Schneider GM AirSeT, first installs 2027", source: "https://www.tdworld.com/substations/news/55387913/schneider-electric-sce-to-deploy-sf6-free-substation-tech-to-boost-grid-capacity"}
+      - {text: "ComEd pilots SF6-free high-voltage breakers", source: "https://www.tdworld.com/substations/news/55420282/midwest-to-west-coast-how-us-utilities-are-broadening-industry-standards-around-sf6-free-power-systems"}
+    premium_modifier_pts: 0
+    contract_note: "USD pricing; index the metal part to LME."
+  CN:
+    label: "China"
+    disclosure_score: 1
+    sf6_momentum: 1
+    regulation_outlook: "No ban; carbon neutrality by 2060; State Grid energised an SF6-free 550 kV substation (May 2026)."
+    disclosure: {text: "Scope 1 and 2 mandatory for about 430 large listed firms; Scope 3 encouraged.", source: "https://assets.kpmg.com/content/dam/kpmg/cn/pdf/en/2024/04/china-stock-exchanges-finalised-mandatory-sustainability-reporting-requirements-for-larger-listed-entities.pdf"}
+    local_proof:
+      - {text: "State Grid SF6-free 550 kV (gas mix including a fluorinated gas)", source: "https://www.hitachienergy.com/content/news/en/features/2026/07/leading-the-charge-state-grid-corporation-of-china-decarbonization-journey"}
+    premium_modifier_pts: 0
+    contract_note: "CNY or USD with an FX clause on the metal part."
+  IN:
+    label: "India"
+    disclosure_score: 1
+    sf6_momentum: 1
+    regulation_outlook: "No ban; the carbon market covers 9 industrial sectors, not power."
+    disclosure: {text: "BRSR mandatory for the top 1,000 listed companies.", source: "https://www.sebi.gov.in/sebi_data/attachdocs/jul-2025/1752724472552.pdf"}
+    local_proof:
+      - {text: "Tata Power uses RM AirSeT (Mumbai, Delhi, then Odisha)", source: "https://www.se.com/in/en/about-us/newsroom/news/press-releases/tata-power-schneider-electric-join-hands-in-india%E2%80%99s-journey-towards-sustainable-and-efficient-power-distribution-with-sf6-free-ring-main-units-for-mumbai-and-delhi-67b30b336be827011b0835f2"}
+      - {text: "BSES Rajdhani smart SF6-free RMU pilot", source: "https://www.energetica-india.net/news/schneider-electric-deploys-indias-first-sf6-free-rm-airset-rmu-with-brpl"}
+    premium_modifier_pts: 0
+    contract_note: "Index the metal part to LME in USD x INR rate at delivery."
+  BR:
+    label: "Brazil"
+    disclosure_score: 0
+    sf6_momentum: 0
+    regulation_outlook: "No ban; the coming cap-and-trade system (SBCE) covers SF6, phasing in."
+    disclosure: {text: "Sustainability reporting made optional for listed companies (May 2026).", source: "https://www.gov.br/cvm/pt-br/assuntos/noticias/2026/cvm-altera-resolucao-193-para-revogar-obrigatoriedade-da-divulgacao-de-informacoes-financeiras-relacionadas-a-sustentabilidade"}
+    local_proof:
+      - {text: "SBCE carbon market covers SF6", source: "https://www.ieta.org/uploads/wp-content/Resources/Busines-briefs/2025/IETA_Business_Brief-Brazil-final-August25.pdf"}
+      - {text: "Enel Brasil still specifies SF6 switches (June 2026)", source: "https://www.eneldistribuicao.com.br/rj/documentos/MAT-PMCB-EeA-2025-2528-EDBR%20(PM-Br%20190.95)%20-%20Chave%20prim%C3%A1ria%20submers%C3%ADvel%20ou%20em%20pedestal%20com%20isola%C3%A7%C3%A3o%20em%20SF6.pdf"}
+    premium_modifier_pts: -2
+    contract_note: "Index the metal part to LME in USD x BRL rate; short validity."
+  SA_AE:
+    label: "Saudi Arabia / UAE"
+    disclosure_score: 2
+    sf6_momentum: 1
+    regulation_outlook: "No ban; net zero 2060 (Saudi Arabia) and 2050 (UAE); the Saudi utility SEC is piloting SF6-free equipment."
+    disclosure: {text: "UAE: every entity reports Scope 1 and 2 (full compliance 30 May 2026, fines AED 50k-2m). Saudi Arabia: voluntary.", source: "https://www.pwc.com/m1/en/services/assurance/manage-risk-in-business/uae-climate-change-law.html"}
+    local_proof:
+      - {text: "Siemens Blue GIS delivered to SEC in Jeddah", source: "https://switchgear-magazine.com/news/products/first-sf%E2%82%86-free-gis-project-delivered-in-saudi-arabia/"}
+      - {text: "Local rival alfanar: dry-air units at SEC and NEOM", source: "https://www.alfanar.com/case-study/implementing-sf6-free-medium-voltage-switchgear-for-a-cleaner-grid"}
+    premium_modifier_pts: 0
+    contract_note: "Currencies pegged to the USD: LME USD indexation is simple."
+  AU:
+    label: "Australia"
+    disclosure_score: 2
+    sf6_momentum: 1
+    regulation_outlook: "No ban, but SF6 is regulated as a synthetic greenhouse gas (A$450k fine in 2025)."
+    disclosure: {text: "Mandatory climate reporting (AASB S2), phasing in 2025-2027.", source: "https://treasury.gov.au/policy-topics/banking-and-finance/sustainable-finance/climate-financial-reporting-guidance"}
+    local_proof:
+      - {text: "Ausgrid uses Schneider SF6-free switchgear", source: "https://se.com/au/en/about-us/newsroom/news/press-releases/ausgrid-partners-with-schneider-electric-to-decarbonise-grid-671efe8381047b575404bbd9"}
+      - {text: "SA Power Networks RM AirSeT trial", source: "https://www.se.com/au/en/about-us/newsroom/news/press-releases/SA-Power-Networks-extends-partnership-with-Schneider-Electric-on-new-trial-to-decarbonise-grid-operations-673683e4eb6f8ba0a102cb5c"}
+    premium_modifier_pts: 0
+    contract_note: "Index the metal part to LME in USD x AUD rate at delivery."
+
+industries:
+  data_centres:
+    label: "Data centres / colocation"
+    esg_sensitivity: 2
+    pitch:
+      - "Zero SF6 in your Scope 1, and nothing to pass on to your tenants"
+      - "Compact footprint and digital monitoring for uptime"
+      - "No toxic arc by-products in indoor electrical rooms"
+    convergence_angle: "Supporting point: the price is less tied to copper."
+    premium_band_pct: [16, 20]
+    sources: ["https://blog.se.com/datacenter/2025/07/18/is-your-data-center-ready-for-the-ban-on-sf6-mv-switchgear-in-the-eu/", "https://sustainability.equinix.com/environment/"]
+  utilities:
+    label: "Distribution / transmission utilities"
+    esg_sensitivity: 1
+    pitch:
+      - "Lower maintenance over a 30-40 year life"
+      - "Peers are already switching"
+      - "Compact: more capacity in existing substations (Southern California Edison case)"
+    convergence_angle: "More stable tender prices: less copper exposure."
+    premium_band_pct: [10, 16]
+    sources: ["https://www.tdworld.com/substations/news/55387913/schneider-electric-sce-to-deploy-sf6-free-substation-tech-to-boost-grid-capacity"]
+  renewables:
+    label: "Renewables developers"
+    esg_sensitivity: 2
+    pitch:
+      - "SF6 in a renewable project is a contradiction"
+      - "Strengthens the green-financing case"
+    convergence_angle: "Supporting point."
+    premium_band_pct: [12, 16]
+    sources: ["https://www.omexom.com/?p=8423", "https://www.climatebonds.net/node/187526"]
+  oil_gas:
+    label: "Oil and gas"
+    esg_sensitivity: 2
+    pitch:
+      - "Removes a Scope 1 source inside your announced net-zero target"
+      - "No gas handling on remote or offshore sites"
+    convergence_angle: "Low relevance."
+    premium_band_pct: [16, 20]
+    sources: ["https://www.spglobal.com/energy/en/news-research/latest-news/energy-transition/120223-cop28-fifty-oil-and-gas-companies-sign-net-zero-methane-pledges"]
+  mining:
+    label: "Mining"
+    esg_sensitivity: 2
+    pitch:
+      - "SF6 already appears in miners' Scope 1 inventories (e.g. Vale)"
+      - "No certified gas handling on remote sites; condition monitoring"
+    convergence_angle: "Low relevance."
+    premium_band_pct: [16, 20]
+    sources: ["https://vale.com/documents/d/guest/vale_relanescopo3-br-d4_291123_-tb-04", "https://www.miningweekly.com/article/sf-free-switchgear-and-digital-intelligence-mines-are-now-investing-in-outcomes-2026-07-07"]
+  industry_multinationals:
+    label: "Industry / multinationals' plants"
+    esg_sensitivity: 1
+    pitch:
+      - "Group reporting covers this site: SF6 shows up in the group's numbers"
+      - "One SF6-free standard worldwide"
+    convergence_angle: "Medium: total cost is compared across sites."
+    premium_band_pct: [10, 16]
+    sources: ["https://files.sciencebasedtargets.org/production/files/Legacy-Net-Zero-Standard-Criteria-V1.0.pdf"]
+  hospitals_buildings_transit:
+    label: "Hospitals, transit, commercial buildings"
+    esg_sensitivity: 1
+    pitch:
+      - "No toxic SF6 arc by-products near people"
+      - "No gas handling; lower maintenance"
+    convergence_angle: "Low."
+    premium_band_pct: [10, 16]
+    note: "Green-building ratings do not reward SF6-free switchgear; do not pitch rating points."
+    sources: ["https://19january2021snapshot.epa.gov/sites/static/files/2016-02/documents/sf6_byproducts.pdf", "https://www.osha.gov/publications/hib19890130"]
+  price_only:
+    label: "Price-only buyers"
+    esg_sensitivity: 0
+    cap_strength: MEDIUM
+    pitch:
+      - "The raw-material cost gap with RM6 is small and narrows when copper rises"
+      - "Close to break-even over the life of the unit"
+    convergence_angle: "LEAD argument."
+    premium_band_pct: [0, 10]
+    sources: []
+
+overrides:   # country x industry notes, shown first in the client pitch when the pair matches
+  - {country: US, industry: data_centres, note: "SB 253 covers large operators; Schneider's 38 kV SF6-free GIS piloted with Equinix.", source: "https://www.storagereview.com/news/schneider-electric-software-defined-medium-voltage-switchgear-yotta-2026-equinix-pilot"}
+  - {country: US, industry: utilities, note: "Southern California Edison installs GM AirSeT from 2027; New York phase-out from 2027.", source: "https://www.tdworld.com/substations/news/55387913/schneider-electric-sce-to-deploy-sf6-free-substation-tech-to-boost-grid-capacity"}
+  - {country: CN, industry: data_centres, note: "New hub data centres must run on over 80% green power: Scope 1 is the remaining lever.", source: "https://www.gov.cn/zhengce/zhengceku/202407/P020240724272072479001.pdf"}
+  - {country: CN, industry: utilities, note: "State Grid went SF6-free at 550 kV with a fluorinated mix; pitch pure air at medium voltage.", source: "https://www.hitachienergy.com/content/news/en/features/2026/07/leading-the-charge-state-grid-corporation-of-china-decarbonization-journey"}
+  - {country: IN, industry: utilities, note: "Tata Power and BSES Rajdhani already run RM AirSeT.", source: "https://www.energetica-india.net/news/schneider-electric-deploys-indias-first-sf6-free-rm-airset-rmu-with-brpl"}
+  - {country: IN, industry: data_centres, note: "India's share of the global data-centre market rises to about 5% by FY30.", source: "https://assets.kpmg.com/content/dam/kpmgsites/in/pdf/2026/07/india-data-centre-opportunity-from-emerging-demand-hub-to-integrated-data-centre-powerhouse.pdf"}
+  - {country: BR, industry: utilities, note: "Enel Brasil still specifies SF6 while Enel buys SF6-free in Europe: pitch alignment with the group standard.", source: "https://new.abb.com/news/detail/74828/abb-and-enel-contribute-to-a-greener-grid-with-proven-airplus-switchgear-solutions"}
+  - {country: BR, industry: mining, note: "Vale lists SF6 among its Scope 1 sources and targets -33% Scope 1 and 2 by 2030.", source: "https://saladeimprensa.vale.com/esg/decarbonization-strategy-and-management"}
+  - {country: SA_AE, industry: utilities, note: "SEC is piloting Siemens, Hitachi, TBEA and local rival alfanar: the specification is being set now.", source: "https://www.alfanar.com/case-study/implementing-sf6-free-medium-voltage-switchgear-for-a-cleaner-grid"}
+  - {country: SA_AE, industry: oil_gas, note: "ADNOC: net zero by 2045 and a $23bn decarbonisation budget; target its switchgear specification.", source: "https://reports.adnoc.ae/e/sustainability-report-2025/PLRO6Rp325"}
+  - {country: AU, industry: utilities, note: "Ausgrid and SA Power Networks already use Schneider SF6-free switchgear.", source: "https://se.com/au/en/about-us/newsroom/news/press-releases/ausgrid-partners-with-schneider-electric-to-decarbonise-grid-671efe8381047b575404bbd9"}
+  - {country: AU, industry: mining, note: "Fortescue targets net-zero Scope 1 and 2 at its Australian iron ore by 2030.", source: "https://www.mining-technology.com/?p=679078"}
+  - {country: AU, industry: data_centres, note: "Data-centre providers' emissions are publicly ranked in Australia.", source: "https://innovationaus.com/?p=62896"}

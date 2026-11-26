@@ -130,6 +130,35 @@ def bom_band(bom_q, comps: pd.DataFrame, moves: pd.Series, level: float):
     return lo / 100 * f, p50 / 100 * f, hi / 100 * f
 
 
+def competitor_gaps(shares: pd.DataFrame, chg: dict, competitors: list) -> tuple[pd.DataFrame, float]:
+    """Cost change of each competitor (teardown value shares x material group changes) and its gap in percentage
+    points vs Schneider's own teardown, as in ``pricing_levers.competitor_lever``. Returns (table, Schneider change)."""
+    ch = {r.brand: sum(getattr(r, f"value_share_{g}") * c for g, c in chg.items()) for r in shares.itertuples()}
+    comp = [b for b in competitors if b in ch]
+    df = pd.DataFrame({"brand": comp + ["Competitor average"],
+                       "change": [ch[b] for b in comp] + [float(np.mean([ch[b] for b in comp]))]})
+    df["gap_pp"] = (df["change"] - ch["Schneider"]) * 100
+    return df, ch["Schneider"]
+
+
+def apply_levers(delta_eur: float, price: float, margin: float, floor: float, pass_through: float,
+                 giveup_pts: float) -> dict:
+    """Price increase for one deal, same steps as ``pricing_levers.recommend``: pass on ``pass_through`` of the cost
+    increase, absorb up to ``giveup_pts`` margin points for the client, never go below the margin floor."""
+    absorbed = 0.0
+    if delta_eur <= 0:
+        increase = 0.0
+    else:
+        base = pass_through * delta_eur
+        absorbed = min(base, giveup_pts / 100 * price)
+        increase = base - absorbed
+    after = margin - (delta_eur - increase) / price
+    binding = after < floor
+    if binding:
+        increase, after = delta_eur - (margin - floor) * price, floor
+    return {"increase_eur": increase, "absorbed_eur": absorbed, "margin_after": after, "floor_binding": bool(binding)}
+
+
 def margin_table(eco: Economics, h: int, points: dict, basis: dict, w_cu: float, cu_fwd_ratio: float,
                  energy_share: float = 0.0, energy_ratio: dict | None = None,
                  policies: dict | None = None) -> pd.DataFrame:
